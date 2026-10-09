@@ -1,13 +1,16 @@
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 import gspread
 from google.oauth2.credentials import Credentials
 
 class GoogleSheetsSync:
     """
     Syncs trades, daily PnL, and monthly statistics directly to Google Sheets.
-    Uses existing credentials from amro store.
+    - Trade Logs: Explicit Buy Time and Sell Time columns.
+    - Daily Summary: Automatic daily totals and lifetime summary.
+    - Monthly Summary: Automatic monthly performance totals.
     """
     def __init__(
         self,
@@ -37,6 +40,7 @@ class GoogleSheetsSync:
             else:
                 print(f"[GoogleSheets] Warning: Neither GOOGLE_TOKEN_JSON env nor token file found at {self.token_path}")
                 return
+
             self.client = gspread.authorize(creds)
 
             # Check if spreadsheet already exists, else create it
@@ -45,8 +49,7 @@ class GoogleSheetsSync:
             except gspread.SpreadsheetNotFound:
                 print(f"[GoogleSheets] Creating new spreadsheet: '{self.sheet_name}'...")
                 self.spreadsheet = self.client.create(self.sheet_name)
-                # Share with user's drive if needed
-                
+
             self.sheet_url = self.spreadsheet.url
             print(f"[GoogleSheets] Connected: {self.sheet_url}")
 
@@ -55,34 +58,55 @@ class GoogleSheetsSync:
                 self.trades_sheet = self.spreadsheet.worksheet("Trade Logs")
             except gspread.WorksheetNotFound:
                 self.trades_sheet = self.spreadsheet.add_worksheet(title="Trade Logs", rows=1000, cols=15)
-                # Header row
-                self.trades_sheet.append_row([
-                    "Trade ID", "Date & Time", "Instrument", "Signal",
-                    "Entry Price", "Exit Price", "Qty", "PnL (Rs)",
-                    "PnL (%)", "Exit Reason", "Status"
-                ])
+            self._ensure_trades_header()
 
             # 2. Setup 'Daily Summary' tab
             try:
                 self.daily_sheet = self.spreadsheet.worksheet("Daily Summary")
             except gspread.WorksheetNotFound:
                 self.daily_sheet = self.spreadsheet.add_worksheet(title="Daily Summary", rows=500, cols=10)
-                self.daily_sheet.append_row([
-                    "Date", "Total Trades", "Wins", "Losses",
-                    "Win Rate (%)", "Daily Net PnL (Rs)", "Closing Balance (Rs)"
-                ])
+            self._ensure_daily_header()
 
             # 3. Setup 'Monthly Summary' tab
             try:
                 self.monthly_sheet = self.spreadsheet.worksheet("Monthly Summary")
             except gspread.WorksheetNotFound:
-                self.monthly_sheet = self.spreadsheet.add_worksheet(title="Monthly Summary", rows=100, cols=8)
-                self.monthly_sheet.append_row([
-                    "Month", "Total Trades", "Net PnL (Rs)", "Return (%)", "Ending Capital (Rs)"
-                ])
+                self.monthly_sheet = self.spreadsheet.add_worksheet(title="Monthly Summary", rows=100, cols=10)
+            self._ensure_monthly_header()
 
         except Exception as e:
             print(f"[GoogleSheets] Initialization error: {e}")
+
+    def _ensure_trades_header(self):
+        """Ensures clean header row in Trade Logs."""
+        headers = [
+            "Trade ID", "Instrument", "Signal", "Buy Time (Entry)",
+            "Sell Time (Exit)", "Buy Price (Rs)", "Sell Price (Rs)", "Qty",
+            "Net P&L (Rs)", "Return (%)", "Exit Reason", "Status"
+        ]
+        curr_headers = self.trades_sheet.row_values(1)
+        if not curr_headers or curr_headers != headers:
+            self.trades_sheet.insert_row(headers, index=1)
+
+    def _ensure_daily_header(self):
+        """Ensures clean header row in Daily Summary."""
+        headers = [
+            "Date", "Total Trades", "Wins", "Losses",
+            "Win Rate (%)", "Daily Net P&L (Rs)", "Closing Capital (Rs)"
+        ]
+        curr_headers = self.daily_sheet.row_values(1)
+        if not curr_headers or curr_headers != headers:
+            self.daily_sheet.insert_row(headers, index=1)
+
+    def _ensure_monthly_header(self):
+        """Ensures clean header row in Monthly Summary."""
+        headers = [
+            "Month", "Total Trades", "Wins", "Losses",
+            "Win Rate (%)", "Monthly Net P&L (Rs)", "Ending Capital (Rs)"
+        ]
+        curr_headers = self.monthly_sheet.row_values(1)
+        if not curr_headers or curr_headers != headers:
+            self.monthly_sheet.insert_row(headers, index=1)
 
     def log_trade(self, trade: Dict[str, Any]):
         """Appends a closed trade to the Trade Logs worksheet."""
@@ -90,49 +114,118 @@ class GoogleSheetsSync:
             return
 
         try:
+            buy_time = str(trade.get("entry_time", ""))
+            sell_time = str(trade.get("exit_time", ""))
+            
             row = [
                 trade.get("trade_id", ""),
-                trade.get("exit_time", trade.get("entry_time", "")),
                 trade.get("symbol", ""),
-                trade.get("signal", ""),
-                trade.get("entry_price", 0.0),
-                trade.get("exit_price", 0.0),
-                trade.get("quantity", 0),
-                trade.get("pnl", 0.0),
-                f"{trade.get('pnl_percent', 0.0)}%",
+                trade.get("signal", "BUY"),
+                buy_time,
+                sell_time,
+                round(float(trade.get("entry_price", 0.0)), 2),
+                round(float(trade.get("exit_price", 0.0)), 2),
+                int(trade.get("quantity", 0)),
+                round(float(trade.get("pnl", 0.0)), 2),
+                f"{trade.get('pnl_percent', 0.0):+,.2f}%",
                 trade.get("exit_reason", ""),
                 trade.get("status", "CLOSED")
             ]
             self.trades_sheet.append_row(row)
-            print(f"[GoogleSheets] Synced trade {trade.get('trade_id')} to Google Sheet!")
+            print(f"[GoogleSheets] Synced trade {trade.get('trade_id')} (Buy: {buy_time} | Sell: {sell_time})")
         except Exception as e:
             print(f"[GoogleSheets] Failed to log trade: {e}")
 
-    def update_daily_summary(
-        self,
-        date_str: str,
-        total_trades: int,
-        wins: int,
-        losses: int,
-        win_rate: float,
-        daily_pnl: float,
-        closing_balance: float
-    ):
-        """Appends/updates the day's performance summary."""
-        if not self.daily_sheet:
+    def update_summaries_from_history(self, history: List[Dict[str, Any]], current_balance: float, initial_capital: float = 100000.0):
+        """
+        Groups all trades by Day and Month, calculates metrics,
+        and rewrites clean Daily and Monthly summary tables with totals.
+        """
+        if not history or not self.daily_sheet or not self.monthly_sheet:
             return
 
         try:
-            row = [
-                date_str,
-                total_trades,
-                wins,
-                losses,
-                f"{win_rate:.2f}%",
-                round(daily_pnl, 2),
-                round(closing_balance, 2)
-            ]
-            self.daily_sheet.append_row(row)
-            print(f"[GoogleSheets] Updated Daily Summary for {date_str}!")
+            daily_groups: Dict[str, List[Dict[str, Any]]] = {}
+            monthly_groups: Dict[str, List[Dict[str, Any]]] = {}
+
+            for t in history:
+                # Parse date
+                raw_time = t.get("exit_time") or t.get("entry_time") or ""
+                date_part = raw_time.split(" ")[0] if " " in raw_time else raw_time[:10]
+                month_part = date_part[:7] if len(date_part) >= 7 else "Unknown"
+
+                daily_groups.setdefault(date_part, []).append(t)
+                monthly_groups.setdefault(month_part, []).append(t)
+
+            # --- Update Daily Summary Sheet ---
+            daily_rows = [[
+                "Date", "Total Trades", "Wins", "Losses",
+                "Win Rate (%)", "Daily Net P&L (Rs)", "Closing Capital (Rs)"
+            ]]
+            
+            running_cap = initial_capital
+            total_wins_all = 0
+            total_losses_all = 0
+            total_pnl_all = 0.0
+
+            for d in sorted(daily_groups.keys()):
+                trades = daily_groups[d]
+                wins = sum(1 for x in trades if x.get("pnl", 0) > 0)
+                losses = sum(1 for x in trades if x.get("pnl", 0) <= 0)
+                day_pnl = sum(x.get("pnl", 0) for x in trades)
+                win_rate = (wins / len(trades)) * 100 if trades else 0.0
+                running_cap += day_pnl
+
+                total_wins_all += wins
+                total_losses_all += losses
+                total_pnl_all += day_pnl
+
+                daily_rows.append([
+                    d, len(trades), wins, losses,
+                    f"{win_rate:.2f}%", round(day_pnl, 2), round(running_cap, 2)
+                ])
+
+            # Lifetime Total row for Daily
+            total_trades_count = len(history)
+            overall_win_rate = (total_wins_all / total_trades_count * 100) if total_trades_count > 0 else 0.0
+            daily_rows.append([
+                "TOTAL SUMMARY", total_trades_count, total_wins_all, total_losses_all,
+                f"{overall_win_rate:.2f}%", round(total_pnl_all, 2), round(current_balance, 2)
+            ])
+
+            self.daily_sheet.clear()
+            self.daily_sheet.update(range_name='A1', values=daily_rows)
+            print("[GoogleSheets] Daily Summary updated with full totals!")
+
+            # --- Update Monthly Summary Sheet ---
+            monthly_rows = [[
+                "Month", "Total Trades", "Wins", "Losses",
+                "Win Rate (%)", "Monthly Net P&L (Rs)", "Ending Capital (Rs)"
+            ]]
+
+            m_running_cap = initial_capital
+            for m in sorted(monthly_groups.keys()):
+                trades = monthly_groups[m]
+                wins = sum(1 for x in trades if x.get("pnl", 0) > 0)
+                losses = sum(1 for x in trades if x.get("pnl", 0) <= 0)
+                m_pnl = sum(x.get("pnl", 0) for x in trades)
+                win_rate = (wins / len(trades)) * 100 if trades else 0.0
+                m_running_cap += m_pnl
+
+                monthly_rows.append([
+                    m, len(trades), wins, losses,
+                    f"{win_rate:.2f}%", round(m_pnl, 2), round(m_running_cap, 2)
+                ])
+
+            # Lifetime Total row for Monthly
+            monthly_rows.append([
+                "TOTAL SUMMARY", total_trades_count, total_wins_all, total_losses_all,
+                f"{overall_win_rate:.2f}%", round(total_pnl_all, 2), round(current_balance, 2)
+            ])
+
+            self.monthly_sheet.clear()
+            self.monthly_sheet.update(range_name='A1', values=monthly_rows)
+            print("[GoogleSheets] Monthly Summary updated with full totals!")
+
         except Exception as e:
-            print(f"[GoogleSheets] Failed to update daily summary: {e}")
+            print(f"[GoogleSheets] Failed to update summaries: {e}")

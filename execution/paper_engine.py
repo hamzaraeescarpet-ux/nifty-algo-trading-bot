@@ -170,6 +170,7 @@ class PaperExecutionEngine:
             if self.sheets_sync:
                 try:
                     self.sheets_sync.log_trade(closed_trade)
+                    self.sheets_sync.update_summaries_from_history(self.trade_history, self.balance, self.initial_capital)
                 except Exception as e:
                     print(f"[PaperEngine] Sheet sync error: {e}")
 

@@ -159,6 +159,13 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker):
 
     print("\n[Simulation] Completed replay simulation!")
     paper_broker.print_performance_table()
+    
+    if paper_broker.sheets_sync:
+        paper_broker.sheets_sync.update_summaries_from_history(
+            paper_broker.trade_history,
+            paper_broker.balance,
+            paper_broker.initial_capital
+        )
 
 def main():
     parser = argparse.ArgumentParser(description="Nifty 50 Options Algo Trading Bot")
@@ -197,6 +204,10 @@ def main():
     # If simulation requested, run it right away
     if args.simulate:
         run_simulation(fetcher, opt_strategy, risk_manager, paper_broker)
+        if os.getenv("GITHUB_ACTIONS") or os.getenv("CI"):
+            print("[Simulation] Completed on GitHub Actions CI. Exiting cleanly.")
+            return
+
         print(f"\n[Info] Dashboard is active at http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
         print("[Info] Press Ctrl+C to stop dashboard server.")
         try:
