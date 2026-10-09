@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty 50 Algo Trading Bot - Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        accent: '#38bdf8',
+                        tradeGreen: '#10b981',
+                        tradeRed: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen font-sans antialiased">
+    <!-- Navbar -->
+    <header class="border-b border-slate-800 bg-cardBg/70 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
+            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <span>⚡ Nifty 50 Algo Trading Bot</span>
+                <span class="text-xs bg-sky-950 text-sky-400 border border-sky-800 px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">Options Paper Mode</span>
+            </h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <a id="sheetLink" href="#" target="_blank" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-md">
+                <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
+                Open Google Sheet
+            </a>
+            <span id="lastUpdated" class="text-xs text-slate-400">Syncing...</span>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+        
+        <!-- Top Metrics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Balance Card -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Virtual Balance</span>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="valBalance" class="text-2xl font-extrabold text-white">Rs. 1,00,000.00</span>
+                </div>
+                <div class="mt-2 text-xs text-slate-400">Starting: Rs. 1,00,000.00</div>
+            </div>
+
+            <!-- Total PnL Card -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Realized P&L</span>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="valPnL" class="text-2xl font-extrabold text-emerald-400">Rs. 0.00</span>
+                </div>
+                <div id="valReturnPct" class="mt-2 text-xs text-slate-400">Return: 0.00%</div>
+            </div>
+
+            <!-- Win Rate Card -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Win Rate</span>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="valWinRate" class="text-2xl font-extrabold text-white">0%</span>
+                </div>
+                <div id="valWinLossCount" class="mt-2 text-xs text-slate-400">0 Wins / 0 Losses</div>
+            </div>
+
+            <!-- Active Positions Card -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Positions</span>
+                <div class="mt-2 flex items-baseline gap-2">
+                    <span id="valOpenTrades" class="text-2xl font-extrabold text-sky-400">0</span>
+                </div>
+                <div class="mt-2 text-xs text-slate-400">Max Allowed: 3</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Equity Curve Chart -->
+            <div class="lg:col-span-2 bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
+                <h3 class="text-sm font-semibold text-slate-200 mb-4">📈 Cumulative Profit Curve (Equity Growth)</h3>
+                <div class="h-64">
+                    <canvas id="equityChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Win / Loss Doughnut Chart -->
+            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
+                <h3 class="text-sm font-semibold text-slate-200 mb-4">🎯 Win / Loss Ratio</h3>
+                <div class="h-64 flex items-center justify-center">
+                    <canvas id="winLossChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Open Positions -->
+        <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
+            <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                Active Open Positions
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-700">
+                        <tr>
+                            <th class="px-4 py-3">Instrument</th>
+                            <th class="px-4 py-3">Entry Time</th>
+                            <th class="px-4 py-3">Entry Price</th>
+                            <th class="px-4 py-3">Quantity</th>
+                            <th class="px-4 py-3">Stop Loss</th>
+                            <th class="px-4 py-3">Target</th>
+                            <th class="px-4 py-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="openPositionsBody">
+                        <tr>
+                            <td colspan="7" class="px-4 py-6 text-center text-slate-500 italic">No open positions currently. Scanning market...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Trade History Table -->
+        <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
+            <h3 class="text-sm font-semibold text-slate-200">📜 Trade Journal (Closed Trades)</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-700">
+                        <tr>
+                            <th class="px-4 py-3">Trade ID</th>
+                            <th class="px-4 py-3">Exit Time</th>
+                            <th class="px-4 py-3">Instrument</th>
+                            <th class="px-4 py-3">Entry</th>
+                            <th class="px-4 py-3">Exit</th>
+                            <th class="px-4 py-3">Qty</th>
+                            <th class="px-4 py-3">P&L (Rs)</th>
+                            <th class="px-4 py-3">Return</th>
+                            <th class="px-4 py-3">Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeHistoryBody">
+                        <tr>
+                            <td colspan="9" class="px-4 py-6 text-center text-slate-500 italic">No closed trades recorded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Dashboard JavaScript -->
+    <script>
+        let equityChartInstance = null;
+        let winLossChartInstance = null;
+
+        function initCharts() {
+            const ctxEq = document.getElementById('equityChart').getContext('2d');
+            equityChartInstance = new Chart(ctxEq, {
+                type: 'line',
+                data: {
+                    labels: ['Start'],
+                    datasets: [{
+                        label: 'Balance (Rs)',
+                        data: [100000],
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#334155' } },
+                        y: { grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            const ctxWl = document.getElementById('winLossChart').getContext('2d');
+            winLossChartInstance = new Chart(ctxWl, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Wins', 'Losses'],
+                    datasets: [{
+                        data: [0, 0],
+                        backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+                }
+            });
+        }
+
+        async function fetchDashboardData() {
+            try {
+                const res = await fetch('/api/stats');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                // Update cards
+                document.getElementById('valBalance').textContent = `Rs. ${Number(data.balance).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                
+                const pnlEl = document.getElementById('valPnL');
+                pnlEl.textContent = `Rs. ${Number(data.total_pnl).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                pnlEl.className = data.total_pnl >= 0 ? 'text-2xl font-extrabold text-emerald-400' : 'text-2xl font-extrabold text-rose-400';
+
+                const retPct = ((data.total_pnl / data.initial_capital) * 100).toFixed(2);
+                document.getElementById('valReturnPct').textContent = `Return: ${retPct}%`;
+
+                document.getElementById('valWinRate').textContent = `${data.win_rate}%`;
+                document.getElementById('valWinLossCount').textContent = `${data.wins} Wins / ${data.losses} Losses`;
+                document.getElementById('valOpenTrades').textContent = data.open_positions.length;
+                
+                if (data.google_sheet_url) {
+                    document.getElementById('sheetLink').href = data.google_sheet_url;
+                }
+                document.getElementById('lastUpdated').textContent = `Synced: ${new Date().toLocaleTimeString()}`;
+
+                // Update Charts
+                if (data.equity_curve && data.equity_curve.length > 0) {
+                    equityChartInstance.data.labels = data.equity_curve.map((_, idx) => `Trade ${idx}`);
+                    equityChartInstance.data.datasets[0].data = data.equity_curve;
+                    equityChartInstance.update();
+                }
+
+                winLossChartInstance.data.datasets[0].data = [data.wins, data.losses];
+                winLossChartInstance.update();
+
+                // Render Open Positions
+                const openBody = document.getElementById('openPositionsBody');
+                if (data.open_positions.length === 0) {
+                    openBody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-500 italic">No open positions currently. Scanning market...</td></tr>';
+                } else {
+                    openBody.innerHTML = data.open_positions.map(p => `
+                        <tr class="border-b border-slate-800 hover:bg-slate-800/40">
+                            <td class="px-4 py-3 font-semibold text-white">${p.symbol}</td>
+                            <td class="px-4 py-3 text-slate-400">${p.entry_time}</td>
+                            <td class="px-4 py-3">Rs. ${p.entry_price}</td>
+                            <td class="px-4 py-3">${p.quantity}</td>
+                            <td class="px-4 py-3 text-rose-400">Rs. ${p.stop_loss}</td>
+                            <td class="px-4 py-3 text-emerald-400">Rs. ${p.target}</td>
+                            <td class="px-4 py-3"><span class="bg-sky-950 text-sky-400 border border-sky-800 px-2 py-0.5 rounded text-xs">OPEN</span></td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Render Trade History
+                const histBody = document.getElementById('tradeHistoryBody');
+                if (data.history.length === 0) {
+                    histBody.innerHTML = '<tr><td colspan="9" class="px-4 py-6 text-center text-slate-500 italic">No closed trades recorded yet.</td></tr>';
+                } else {
+                    histBody.innerHTML = data.history.slice().reverse().map(t => `
+                        <tr class="border-b border-slate-800 hover:bg-slate-800/40">
+                            <td class="px-4 py-3 font-mono text-xs text-slate-400">${t.trade_id}</td>
+                            <td class="px-4 py-3 text-slate-400 text-xs">${t.exit_time || t.entry_time}</td>
+                            <td class="px-4 py-3 font-medium text-white">${t.symbol}</td>
+                            <td class="px-4 py-3">Rs. ${t.entry_price}</td>
+                            <td class="px-4 py-3">Rs. ${t.exit_price}</td>
+                            <td class="px-4 py-3">${t.quantity}</td>
+                            <td class="px-4 py-3 font-bold ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">Rs. ${t.pnl}</td>
+                            <td class="px-4 py-3 ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${t.pnl_percent}%</td>
+                            <td class="px-4 py-3 text-xs text-slate-400">${t.exit_reason}</td>
+                        </tr>
+                    `).join('');
+                }
+
+            } catch (err) {
+                console.error("Dashboard sync error:", err);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            fetchDashboardData();
+            setInterval(fetchDashboardData, 5000); // Poll every 5s
+        });
+    </script>
+</body>
+</html>

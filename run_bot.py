@@ -1,0 +1,311 @@
+import os
+import sys
+import time
+import argparse
+import threading
+from datetime import datetime
+from pathlib import Path
+
+# Setup logging to both console and file
+BASE_DIR = Path(__file__).resolve().parent
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+LOG_FILE = LOGS_DIR / "bot.log"
+
+class LoggerWriter:
+    def __init__(self, filepath, stream):
+        self.terminal = stream
+        self.log = open(filepath, "a", encoding="utf-8")
+
+    def write(self, message):
+        try:
+            self.terminal.write(message)
+            self.terminal.flush()
+        except UnicodeEncodeError:
+            self.terminal.write(message.encode("ascii", "replace").decode("ascii"))
+            self.terminal.flush()
+        try:
+            self.log.write(message)
+            self.log.flush()
+        except Exception:
+            pass
+
+    def flush(self):
+        try:
+            self.terminal.flush()
+            self.log.flush()
+        except Exception:
+            pass
+
+sys.stdout = LoggerWriter(LOG_FILE, sys.stdout)
+sys.stderr = LoggerWriter(LOG_FILE, sys.stderr)
+
+from data.data_fetcher import MarketDataFetcher
+from data.google_sheets_sync import GoogleSheetsSync
+from strategies.nifty_options_strategy import NiftyOptionsStrategy
+from risk.risk_manager import RiskManager
+from execution.paper_engine import PaperExecutionEngine
+from dashboard.app import app
+from config import settings
+
+def start_dashboard_thread():
+    """Runs the Flask web dashboard on a background daemon thread."""
+    def _run():
+        app.run(host=settings.DASHBOARD_HOST, port=settings.DASHBOARD_PORT, debug=False, use_reloader=False)
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    print(f"[Dashboard] Running on http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
+
+def is_market_open() -> bool:
+    """Checks if today is a weekday and current time is within Indian market hours (09:15 to 15:30 IST)."""
+    now = datetime.now()
+    # Monday = 0, Friday = 4, Saturday = 5, Sunday = 6
+    if now.weekday() >= 5:
+        return False
+    time_str = now.strftime("%H:%M")
+    return settings.MARKET_OPEN_TIME <= time_str <= settings.MARKET_CLOSE_TIME
+
+def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker):
+    """
+    Simulates recent market session candle-by-candle.
+    Allows testing when market is closed at night or on weekends!
+    """
+    print("\n" + "=" * 65)
+    print("  [OFF-MARKET REPLAY SIMULATION: NIFTY 50 OPTIONS]")
+    print(f"  Underlying: {settings.INDEX_SYMBOL} | Lot Size: {settings.OPTION_LOT_SIZE}")
+    print("=" * 65)
+
+    df = fetcher.get_historical_data(settings.INDEX_SYMBOL, interval=settings.TIMEFRAME, period="5d")
+    if df is None or df.empty:
+        print("[Simulation] Error: Unable to fetch historical data for simulation.")
+        return
+
+    print(f"[Simulation] Loaded {len(df)} candles. Simulating candle feed...")
+    min_lookback = max(settings.EMA_SLOW, settings.RSI_PERIOD, settings.ATR_PERIOD) + 2
+
+    # Step through recent candles (last 100 candles)
+    start_idx = max(min_lookback, len(df) - 120)
+    for i in range(start_idx, len(df)):
+        sub_df = df.iloc[:i+1]
+        latest_candle = sub_df.iloc[-1]
+        ts = sub_df.index[-1]
+        
+        # Format time for display
+        ts_str = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, 'strftime') else str(ts)
+        spot_close = float(latest_candle['Close'])
+        spot_high = float(latest_candle['High'])
+        spot_low = float(latest_candle['Low'])
+
+        # 1. Check existing open positions
+        open_keys = list(paper_broker.open_positions.keys())
+        for symbol in open_keys:
+            pos = paper_broker.open_positions[symbol]
+            opt_type = pos.get("option_type", "CE")
+            entry_spot = pos.get("entry_spot", spot_close)
+            
+            # Approximate current option high/low based on spot movement & delta
+            spot_diff = spot_close - entry_spot
+            delta_change = spot_diff * settings.OPTION_DELTA if opt_type == "CE" else -spot_diff * settings.OPTION_DELTA
+            curr_opt_price = max(1.0, pos["entry_price"] + delta_change)
+            curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
+            curr_opt_low = min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA)
+
+            closed = paper_broker.update_and_check_exits(
+                symbol=symbol,
+                high_price=curr_opt_high,
+                low_price=curr_opt_low,
+                close_price=curr_opt_price
+            )
+            if closed:
+                pnl_str = f"Rs. {closed['pnl']:+,.2f} ({closed['pnl_percent']:+,.2f}%)"
+                tag = "[PROFIT]" if closed['pnl'] > 0 else "[LOSS]"
+                print(f"  {tag} {symbol} Exit @ Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
+                risk_manager.update_daily_pnl(closed['pnl'])
+
+        # 2. Check for fresh option entry signal
+        can_trade, _ = risk_manager.can_open_trade(len(paper_broker.open_positions))
+        if can_trade:
+            signal_data = opt_strategy.generate_option_signal(sub_df)
+            if signal_data is not None:
+                contract = signal_data["instrument"]
+                if contract not in paper_broker.open_positions:
+                    opt_entry = signal_data["price"]
+                    opt_sl = signal_data["stop_loss"]
+                    opt_tgt = signal_data["target"]
+                    risk_per_share = signal_data["option_risk_per_share"]
+
+                    # Calculate quantity in lots
+                    risk_amount = risk_manager.risk_per_trade_amount
+                    total_shares = max(settings.OPTION_LOT_SIZE, int((risk_amount / risk_per_share) // settings.OPTION_LOT_SIZE) * settings.OPTION_LOT_SIZE)
+                    total_shares = min(total_shares, settings.OPTION_LOT_SIZE * settings.MAX_OPTION_LOTS)
+
+                    pos = paper_broker.execute_order(
+                        symbol=contract,
+                        signal="BUY",
+                        price=opt_entry,
+                        quantity=total_shares,
+                        stop_loss=opt_sl,
+                        target=opt_tgt,
+                        reason=signal_data["reason"],
+                        atr=signal_data["index_atr"]
+                    )
+                    pos["option_type"] = signal_data["option_type"]
+                    pos["entry_spot"] = spot_price = signal_data["underlying_price"]
+                    print(f"\n[{ts_str}] [SIGNAL] BUY {total_shares}x {contract} @ Rs. {opt_entry}")
+                    print(f"   SL: Rs. {opt_sl} | Target: Rs. {opt_tgt} | Spot: {spot_price}")
+
+        # Sleep briefly for simulation effect
+        time.sleep(0.1)
+
+    print("\n[Simulation] Completed replay simulation!")
+    paper_broker.print_performance_table()
+
+def main():
+    parser = argparse.ArgumentParser(description="Nifty 50 Options Algo Trading Bot")
+    parser.add_argument("--simulate", action="store_true", help="Run off-market candle replay simulation")
+    args = parser.parse_args()
+
+    print("=" * 70)
+    print("   [NIFTY 50 OPTIONS ALGO TRADING BOT - INSTITUTIONAL GRADE]")
+    print(f"   Mode: {settings.TRADING_MODE}")
+    print(f"   Virtual Capital: Rs. {settings.INITIAL_CAPITAL:,.2f}")
+    print(f"   Risk Per Trade: {settings.RISK_PER_TRADE_PERCENT}% | Max Daily Loss: {settings.MAX_DAILY_LOSS_PERCENT}%")
+    print(f"   Option Lot Size: {settings.OPTION_LOT_SIZE} | Strike Step: {settings.ATM_STRIKE_STEP}")
+    print("=" * 70)
+
+    # 1. Start Web Dashboard Thread
+    start_dashboard_thread()
+
+    # 2. Initialize Google Sheets
+    print("[GoogleSheets] Initializing Google Sheets connection...")
+    sheets_sync = GoogleSheetsSync(
+        token_path=settings.GOOGLE_TOKEN_PATH,
+        sheet_name=settings.GOOGLE_SHEET_NAME
+    )
+    if sheets_sync.sheet_url:
+        print(f"[GoogleSheets] Live Journal Link: {sheets_sync.sheet_url}")
+
+    # 3. Initialize Core Engines
+    fetcher = MarketDataFetcher()
+    opt_strategy = NiftyOptionsStrategy()
+    risk_manager = RiskManager(initial_capital=settings.INITIAL_CAPITAL)
+    paper_broker = PaperExecutionEngine(
+        initial_capital=settings.INITIAL_CAPITAL,
+        sheets_sync=sheets_sync
+    )
+
+    # If simulation requested, run it right away
+    if args.simulate:
+        run_simulation(fetcher, opt_strategy, risk_manager, paper_broker)
+        print(f"\n[Info] Dashboard is active at http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
+        print("[Info] Press Ctrl+C to stop dashboard server.")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            return
+
+    # Regular Live / Scheduled Market Monitoring Loop
+    print("\n[Bot Engine] Standing by for live market feed...")
+    iteration = 1
+    current_day = datetime.now().date()
+
+    try:
+        while True:
+            now = datetime.now()
+            time_hm = now.strftime("%H:%M")
+            now_str = now.strftime("%H:%M:%S")
+
+            # Check new day reset
+            if now.date() != current_day:
+                current_day = now.date()
+                risk_manager.reset_daily_metrics()
+                print(f"\n[{now_str}] New trading day started. Resetting daily metrics.")
+
+            # Check market hours
+            if not is_market_open():
+                if iteration % 30 == 1:
+                    print(f"[{now_str}] Market is currently CLOSED (Trading hours: Mon-Fri 09:15 to 15:30 IST).")
+                    print(f"[{now_str}] Bot is running in standby mode. Web Dashboard available at http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
+                iteration += 1
+                time.sleep(60)
+                continue
+
+            # Check EOD 3:15 PM Square-off
+            is_eod_squareoff = (time_hm >= settings.SQUARE_OFF_TIME)
+
+            # Fetch latest Nifty 50 5m candles
+            df = fetcher.get_historical_data(settings.INDEX_SYMBOL, interval=settings.TIMEFRAME, period="5d")
+            if df is not None and not df.empty:
+                latest = df.iloc[-1]
+                spot_close = float(latest['Close'])
+                spot_high = float(latest['High'])
+                spot_low = float(latest['Low'])
+
+                # 1. Manage active positions
+                open_keys = list(paper_broker.open_positions.keys())
+                for symbol in open_keys:
+                    pos = paper_broker.open_positions[symbol]
+                    opt_type = pos.get("option_type", "CE")
+                    entry_spot = pos.get("entry_spot", spot_close)
+
+                    spot_diff = spot_close - entry_spot
+                    delta_change = spot_diff * settings.OPTION_DELTA if opt_type == "CE" else -spot_diff * settings.OPTION_DELTA
+                    curr_opt_price = max(1.0, pos["entry_price"] + delta_change)
+                    curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
+                    curr_opt_low = min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA)
+
+                    closed = paper_broker.update_and_check_exits(
+                        symbol=symbol,
+                        high_price=curr_opt_high,
+                        low_price=curr_opt_low,
+                        close_price=curr_opt_price,
+                        force_square_off=is_eod_squareoff
+                    )
+                    if closed:
+                        pnl_str = f"Rs. {closed['pnl']:+,.2f} ({closed['pnl_percent']:+,.2f}%)"
+                        tag = "[PROFIT]" if closed['pnl'] > 0 else "[LOSS]"
+                        print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
+                        risk_manager.update_daily_pnl(closed['pnl'])
+
+                # 2. Check for new signals if allowed
+                if not is_eod_squareoff:
+                    can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions))
+                    if can_trade:
+                        signal_data = opt_strategy.generate_option_signal(df)
+                        if signal_data is not None:
+                            contract = signal_data["instrument"]
+                            if contract not in paper_broker.open_positions:
+                                opt_entry = signal_data["price"]
+                                opt_sl = signal_data["stop_loss"]
+                                opt_tgt = signal_data["target"]
+                                risk_per_share = signal_data["option_risk_per_share"]
+
+                                risk_amount = risk_manager.risk_per_trade_amount
+                                total_shares = max(settings.OPTION_LOT_SIZE, int((risk_amount / risk_per_share) // settings.OPTION_LOT_SIZE) * settings.OPTION_LOT_SIZE)
+                                total_shares = min(total_shares, settings.OPTION_LOT_SIZE * settings.MAX_OPTION_LOTS)
+
+                                pos = paper_broker.execute_order(
+                                    symbol=contract,
+                                    signal="BUY",
+                                    price=opt_entry,
+                                    quantity=total_shares,
+                                    stop_loss=opt_sl,
+                                    target=opt_tgt,
+                                    reason=signal_data["reason"],
+                                    atr=signal_data["index_atr"]
+                                )
+                                pos["option_type"] = signal_data["option_type"]
+                                pos["entry_spot"] = signal_data["underlying_price"]
+                                print(f"\n[{now_str}] [SIGNAL] BUY {total_shares}x {contract} @ Rs. {opt_entry}")
+                                print(f"   SL: Rs. {opt_sl} | Target: Rs. {opt_tgt} | Underlying Spot: {pos['entry_spot']}")
+
+            iteration += 1
+            time.sleep(60)
+
+    except KeyboardInterrupt:
+        print("\n[Bot Engine] Stopping bot...")
+        paper_broker.print_performance_table()
+
+if __name__ == "__main__":
+    main()
