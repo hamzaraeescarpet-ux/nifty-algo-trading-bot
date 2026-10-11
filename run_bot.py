@@ -118,9 +118,17 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker):
             )
             if closed:
                 pnl_str = f"Rs. {closed['pnl']:+,.2f} ({closed['pnl_percent']:+,.2f}%)"
-                tag = "[PROFIT]" if closed['pnl'] > 0 else "[LOSS]"
+                tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
                 print(f"  {tag} {symbol} Exit @ Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                 risk_manager.update_daily_pnl(closed['pnl'])
+            else:
+                # Active Trailing Stop & Breakeven Check
+                pos = paper_broker.open_positions[symbol]
+                updated, new_sl = risk_manager.check_trailing_stop(pos, curr_opt_price)
+                if updated:
+                    old_sl = pos['stop_loss']
+                    paper_broker.update_trailing_sl(symbol, new_sl)
+                    print(f"  [TRAILING SL] {symbol}: SL moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
 
         # 2. Check for fresh option entry signal
         can_trade, _ = risk_manager.can_open_trade(len(paper_broker.open_positions))
@@ -275,9 +283,17 @@ def main():
                     )
                     if closed:
                         pnl_str = f"Rs. {closed['pnl']:+,.2f} ({closed['pnl_percent']:+,.2f}%)"
-                        tag = "[PROFIT]" if closed['pnl'] > 0 else "[LOSS]"
+                        tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
                         print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                         risk_manager.update_daily_pnl(closed['pnl'])
+                    else:
+                        # Active Trailing Stop & Breakeven Check
+                        pos = paper_broker.open_positions[symbol]
+                        updated, new_sl = risk_manager.check_trailing_stop(pos, curr_opt_price)
+                        if updated:
+                            old_sl = pos['stop_loss']
+                            paper_broker.update_trailing_sl(symbol, new_sl)
+                            print(f"[TRAILING SL] {symbol}: Stop-Loss moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
 
                 # 2. Check for new signals if allowed
                 if not is_eod_squareoff:

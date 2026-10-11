@@ -1,7 +1,7 @@
 {
     "initial_capital": 100000.0,
     "balance": 97865.0,
-    "total_trades": 10,
+    "total_trades": 11,
     "history": [
         {
             "trade_id": "TRADE_1_220854",
@@ -232,6 +232,29 @@
             "exit_reason": "TARGET HIT (PROFIT)",
             "pnl": 1025.0,
             "pnl_percent": 26.37
+        },
+        {
+            "trade_id": "TRADE_11_215007",
+            "symbol": "NIFTY 22350 PE",
+            "signal": "BUY",
+            "entry_time": "2026-10-11 21:50:07",
+            "entry_price": 156.6,
+            "quantity": 50,
+            "stop_loss": 156.6,
+            "initial_sl": 136.9,
+            "target": 192.1,
+            "atr": 28.19,
+            "reason": "Nifty Index SELL -> NIFTY 22350 PE Triggered (Bearish Confluence: ST Red + VWAP + EMA 20<50 + ADX 51.7 + MACD Bearish)",
+            "status": "CLOSED",
+            "highest_price": 180.64999999999927,
+            "lowest_price": 130.09980468750072,
+            "option_type": "PE",
+            "entry_spot": 22372.85,
+            "exit_time": "2026-10-11 21:50:08",
+            "exit_price": 156.6,
+            "exit_reason": "TRAILING SL HIT",
+            "pnl": 0.0,
+            "pnl_percent": 0.0
         }
     ],
     "open_positions": []

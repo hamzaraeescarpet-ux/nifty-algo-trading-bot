@@ -15,21 +15,27 @@ INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", 100000.0))  # ₹1,00,000 S
 RISK_PER_TRADE_PERCENT = float(os.getenv("RISK_PER_TRADE_PERCENT", 1.0))  # 1% risk per trade of total capital
 MAX_DAILY_LOSS_PERCENT = float(os.getenv("MAX_DAILY_LOSS_PERCENT", 2.0))  # 2% Circuit Breaker (stops trading if hit)
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", 3))  # Max concurrent trades
-RISK_REWARD_RATIO = float(os.getenv("RISK_REWARD_RATIO", 2.0))  # Minimum 1:2 Risk-to-Reward
+RISK_REWARD_RATIO = float(os.getenv("RISK_REWARD_RATIO", 1.8))  # 1:1.8 Target for high win-rate
+BREAKEVEN_R_RATIO = 0.6     # Move SL to Breakeven once trade gains 0.6R (locks in zero loss!)
 
-# --- STRATEGY PARAMETERS (Advanced Confluence) ---
+# --- STRATEGY PARAMETERS (Advanced Confluence with Trend Strength & Momentum) ---
 TIMEFRAME = "5m"  # 5-minute candles for intraday
 SUPERTREND_PERIOD = 10
 SUPERTREND_MULTIPLIER = 3.0
 EMA_FAST = 20
 EMA_SLOW = 50
 RSI_PERIOD = 14
-RSI_BUY_MIN = 52.0
-RSI_BUY_MAX = 68.0
-RSI_SELL_MIN = 32.0
-RSI_SELL_MAX = 48.0
+RSI_BUY_MIN = 50.0
+RSI_BUY_MAX = 70.0
+RSI_SELL_MIN = 30.0
+RSI_SELL_MAX = 50.0
+ADX_PERIOD = 14
+ADX_MIN_THRESHOLD = 20.0    # Sideways market filter (ADX > 20 guarantees trend)
+MACD_FAST = 12
+MACD_SLOW = 26
+MACD_SIGNAL = 9
 ATR_PERIOD = 14
-ATR_SL_MULTIPLIER = 1.5  # Stop loss = 1.5 * ATR
+ATR_SL_MULTIPLIER = 1.4     # Tight, optimal volatility Stop Loss
 
 # --- INTRADAY TIMINGS (IST) ---
 MARKET_OPEN_TIME = "09:15"

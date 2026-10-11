@@ -5,15 +5,20 @@ from strategies.indicators import (
     calculate_rsi,
     calculate_atr,
     calculate_supertrend,
-    calculate_vwap
+    calculate_vwap,
+    calculate_adx,
+    calculate_macd
 )
 from config import settings
 
 class ConfluenceStrategy:
     """
-    Advanced Intraday Confluence Strategy:
-    Combines Supertrend + VWAP + Dual EMA Trend Filter + RSI Momentum + ATR Volatility SL.
-    Aims for high win-rate with minimum drawdown through strict multi-factor filters.
+    Advanced Institutional Confluence Strategy:
+    - Directional Alignment: Supertrend (10, 3) + Dual EMA Ribbon (20 & 50)
+    - Value Benchmark: VWAP
+    - Trend Strength Filter: ADX >= 20 (Blocks sideways choppy market losses)
+    - Momentum Acceleration: MACD Histogram + Dynamic RSI
+    - Volatility Risk: ATR Volatility Stop Loss
     """
     def __init__(self, config=settings):
         self.config = config
@@ -22,7 +27,7 @@ class ConfluenceStrategy:
         """Computes all required technical indicators onto the candle dataframe."""
         df = df.copy()
         
-        # 1. EMAs
+        # 1. Dual EMAs
         df['EMA_FAST'] = calculate_ema(df['Close'], self.config.EMA_FAST)
         df['EMA_SLOW'] = calculate_ema(df['Close'], self.config.EMA_SLOW)
         
@@ -44,48 +49,69 @@ class ConfluenceStrategy:
         # 5. VWAP
         df['VWAP'] = calculate_vwap(df)
         
+        # 6. ADX (Trend Strength)
+        df['ADX'] = calculate_adx(df, self.config.ADX_PERIOD)
+        
+        # 7. MACD (Momentum Confirmation)
+        macd_df = calculate_macd(
+            df['Close'],
+            fast=self.config.MACD_FAST,
+            slow=self.config.MACD_SLOW,
+            signal=self.config.MACD_SIGNAL
+        )
+        df['MACD'] = macd_df['MACD']
+        df['MACD_Signal'] = macd_df['MACD_Signal']
+        df['MACD_Hist'] = macd_df['MACD_Hist']
+        
         return df
 
     def analyze_signal(self, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         """
-        Analyzes the latest closed candle to detect Buy/Sell trade signal.
-        Returns signal dictionary if conditions are met, else None.
+        Analyzes the latest completed candle for high-probability Institutional setups.
         """
-        if len(df) < max(self.config.EMA_SLOW, self.config.RSI_PERIOD, self.config.ATR_PERIOD) + 2:
+        min_bars = max(self.config.EMA_SLOW, self.config.MACD_SLOW, self.config.RSI_PERIOD, self.config.ADX_PERIOD) + 5
+        if len(df) < min_bars:
             return None
             
         df = self.populate_indicators(df)
         
-        # We look at the latest completed candle (index -1)
         curr = df.iloc[-1]
         prev = df.iloc[-2]
         
-        close = curr['Close']
-        atr = curr['ATR']
+        close = float(curr['Close'])
+        atr = float(curr['ATR'])
+        adx = float(curr['ADX'])
         
         if pd.isna(atr) or atr <= 0:
             return None
 
-        # --- BUY (LONG) CONDITIONS ---
-        # 1. Supertrend is Bullish (Green)
-        # 2. Price is above VWAP
-        # 3. EMA 20 is above EMA 50 and Price > EMA 20
-        # 4. RSI is in healthy bullish momentum zone (e.g. 52 - 68)
+        # Filter out sideways / dead market: Only trade when ADX confirms trend strength
+        has_trend_strength = (adx >= self.config.ADX_MIN_THRESHOLD)
+        if not has_trend_strength:
+            return None
+
+        # --- BUY (LONG / CALL CE) CONDITIONS ---
+        # 1. Supertrend is Green
+        # 2. Price > VWAP
+        # 3. EMA 20 > EMA 50 and Close > EMA 20
+        # 4. RSI is in healthy bullish momentum zone (50 - 70)
+        # 5. MACD Histogram is positive (Momentum expanding upwards)
         is_bullish_trend = (
             curr['Supertrend_Direction'] == 1 and
             close > curr['VWAP'] and
             curr['EMA_FAST'] > curr['EMA_SLOW'] and
-            close > curr['EMA_FAST']
+            close > curr['EMA_FAST'] and
+            curr['MACD_Hist'] > 0
         )
         is_bullish_momentum = (
             self.config.RSI_BUY_MIN <= curr['RSI'] <= self.config.RSI_BUY_MAX
         )
         
-        # Entry trigger: Fresh trend confirmation (Supertrend flipped OR EMA crossover OR fresh bounce above VWAP)
+        # High quality entry trigger: Fresh Supertrend flip OR MACD Histogram expanding OR Break above VWAP
         bullish_trigger = (
             (prev['Supertrend_Direction'] != 1 and curr['Supertrend_Direction'] == 1) or
-            (prev['Close'] <= prev['VWAP'] and curr['Close'] > curr['VWAP']) or
-            (prev['Close'] <= prev['EMA_FAST'] and curr['Close'] > curr['EMA_FAST'])
+            (prev['MACD_Hist'] <= 0 and curr['MACD_Hist'] > 0) or
+            (prev['Close'] <= prev['VWAP'] and curr['Close'] > curr['VWAP'])
         )
 
         if is_bullish_trend and is_bullish_momentum and bullish_trigger:
@@ -99,31 +125,35 @@ class ConfluenceStrategy:
                 "stop_loss": stop_loss,
                 "target": target,
                 "atr": round(atr, 2),
-                "rsi": round(curr['RSI'], 2),
+                "adx": round(adx, 1),
+                "rsi": round(curr['RSI'], 1),
                 "supertrend": round(curr['Supertrend'], 2),
                 "vwap": round(curr['VWAP'], 2),
-                "reason": "Bullish Confluence: ST Green + VWAP + EMA 20>50 + RSI Momentum"
+                "reason": f"Bullish Confluence: ST Green + VWAP + EMA 20>50 + ADX {adx:.1f} + MACD Bullish"
             }
 
-        # --- SELL (SHORT) CONDITIONS ---
-        # 1. Supertrend is Bearish (Red)
-        # 2. Price is below VWAP
-        # 3. EMA 20 is below EMA 50 and Price < EMA 20
-        # 4. RSI is in healthy bearish momentum zone (e.g. 32 - 48)
+        # --- SELL (SHORT / PUT PE) CONDITIONS ---
+        # 1. Supertrend is Red
+        # 2. Price < VWAP
+        # 3. EMA 20 < EMA 50 and Close < EMA 20
+        # 4. RSI is in healthy bearish momentum zone (30 - 50)
+        # 5. MACD Histogram is negative (Momentum expanding downwards)
         is_bearish_trend = (
             curr['Supertrend_Direction'] == -1 and
             close < curr['VWAP'] and
             curr['EMA_FAST'] < curr['EMA_SLOW'] and
-            close < curr['EMA_FAST']
+            close < curr['EMA_FAST'] and
+            curr['MACD_Hist'] < 0
         )
         is_bearish_momentum = (
             self.config.RSI_SELL_MIN <= curr['RSI'] <= self.config.RSI_SELL_MAX
         )
         
+        # High quality entry trigger: Fresh Supertrend flip OR MACD Histogram drop OR Break below VWAP
         bearish_trigger = (
             (prev['Supertrend_Direction'] != -1 and curr['Supertrend_Direction'] == -1) or
-            (prev['Close'] >= prev['VWAP'] and curr['Close'] < curr['VWAP']) or
-            (prev['Close'] >= prev['EMA_FAST'] and curr['Close'] < curr['EMA_FAST'])
+            (prev['MACD_Hist'] >= 0 and curr['MACD_Hist'] < 0) or
+            (prev['Close'] >= prev['VWAP'] and curr['Close'] < curr['VWAP'])
         )
 
         if is_bearish_trend and is_bearish_momentum and bearish_trigger:
@@ -137,10 +167,11 @@ class ConfluenceStrategy:
                 "stop_loss": stop_loss,
                 "target": target,
                 "atr": round(atr, 2),
-                "rsi": round(curr['RSI'], 2),
+                "adx": round(adx, 1),
+                "rsi": round(curr['RSI'], 1),
                 "supertrend": round(curr['Supertrend'], 2),
                 "vwap": round(curr['VWAP'], 2),
-                "reason": "Bearish Confluence: ST Red + Below VWAP + EMA 20<50 + RSI Momentum"
+                "reason": f"Bearish Confluence: ST Red + VWAP + EMA 20<50 + ADX {adx:.1f} + MACD Bearish"
             }
 
         return None

@@ -60,37 +60,55 @@ class RiskManager:
 
     def check_trailing_stop(self, position: Dict[str, Any], current_price: float) -> Tuple[bool, float]:
         """
-        Checks and updates trailing stop-loss.
-        If trade reaches 1R profit, move SL to breakeven (entry price).
-        If trade reaches beyond 1.5R, trail SL by 1.5 * ATR.
-        Returns: (is_updated, new_sl)
+        Dynamic Breakeven & Multi-Stage Trailing Stop for High Win-Rate:
+        - 0.5R to 0.6R profit: Immediately moves SL to Breakeven (Cost-to-Cost).
+        - 1.0R profit: Trails SL to +0.5R guaranteed profit.
+        - 1.4R profit: Trails SL to +1.0R guaranteed profit.
         """
-        direction = position['signal'] # BUY or SELL
-        entry_price = position['entry_price']
-        curr_sl = position['stop_loss']
-        atr = position.get('atr', (abs(entry_price - curr_sl) / self.config.ATR_SL_MULTIPLIER))
-        initial_risk = abs(entry_price - position['initial_sl'])
+        direction = position.get('signal', 'BUY')
+        entry_price = float(position['entry_price'])
+        curr_sl = float(position['stop_loss'])
+        initial_sl = float(position.get('initial_sl', curr_sl))
+        initial_risk = abs(entry_price - initial_sl)
         
+        if initial_risk <= 0:
+            return False, curr_sl
+            
+        be_threshold = getattr(self.config, 'BREAKEVEN_R_RATIO', 0.6) * initial_risk
+
         if direction == "BUY":
             gain = current_price - entry_price
-            # If gain >= 1R, lock breakeven
-            if gain >= initial_risk and curr_sl < entry_price:
-                return True, entry_price
-            # If gain >= 1.5R, trail behind price
-            if gain >= 1.5 * initial_risk:
-                potential_sl = round(current_price - (self.config.ATR_SL_MULTIPLIER * atr), 2)
-                if potential_sl > curr_sl:
-                    return True, potential_sl
-                    
+            
+            # Stage 3: If gain >= 1.4R, trail to +1.0R
+            if gain >= 1.4 * initial_risk:
+                new_sl = round(entry_price + (1.0 * initial_risk), 1)
+                if new_sl > curr_sl:
+                    return True, new_sl
+
+            # Stage 2: If gain >= 1.0R, trail to +0.5R
+            if gain >= 1.0 * initial_risk:
+                new_sl = round(entry_price + (0.5 * initial_risk), 1)
+                if new_sl > curr_sl:
+                    return True, new_sl
+
+            # Stage 1: Breakeven (0.6R profit reached) -> Lock entry
+            if gain >= be_threshold and curr_sl < entry_price:
+                return True, round(entry_price, 1)
+
         elif direction == "SELL":
             gain = entry_price - current_price
-            # If gain >= 1R, lock breakeven
-            if gain >= initial_risk and curr_sl > entry_price:
-                return True, entry_price
-            # If gain >= 1.5R, trail above price
-            if gain >= 1.5 * initial_risk:
-                potential_sl = round(current_price + (self.config.ATR_SL_MULTIPLIER * atr), 2)
-                if potential_sl < curr_sl:
-                    return True, potential_sl
-                    
+            
+            if gain >= 1.4 * initial_risk:
+                new_sl = round(entry_price - (1.0 * initial_risk), 1)
+                if new_sl < curr_sl:
+                    return True, new_sl
+
+            if gain >= 1.0 * initial_risk:
+                new_sl = round(entry_price - (0.5 * initial_risk), 1)
+                if new_sl < curr_sl:
+                    return True, new_sl
+
+            if gain >= be_threshold and curr_sl > entry_price:
+                return True, round(entry_price, 1)
+
         return False, curr_sl

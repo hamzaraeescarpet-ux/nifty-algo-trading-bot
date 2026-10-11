@@ -107,3 +107,42 @@ def calculate_vwap(df: pd.DataFrame) -> pd.Series:
         cum_tp_v = (typical_price * volume).cumsum()
         cum_v = volume.cumsum()
         return cum_tp_v / cum_v.replace(0, np.nan)
+
+def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Calculates Average Directional Index (ADX) to filter out sideways choppy markets."""
+    high = df['High']
+    low = df['Low']
+    close = df['Close']
+    
+    tr1 = high - low
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    up_move = high - high.shift(1)
+    down_move = low.shift(1) - low
+    
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+    
+    atr = tr.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    plus_di = 100 * (pd.Series(plus_dm, index=df.index).ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr.replace(0, np.nan))
+    minus_di = 100 * (pd.Series(minus_dm, index=df.index).ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr.replace(0, np.nan))
+    
+    dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan))
+    adx = dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    return adx.fillna(20.0)
+
+def calculate_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """Calculates MACD Line, Signal Line, and MACD Histogram."""
+    ema_fast = series.ewm(span=fast, adjust=False).mean()
+    ema_slow = series.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    macd_hist = macd_line - signal_line
+    
+    res = pd.DataFrame(index=series.index)
+    res['MACD'] = macd_line
+    res['MACD_Signal'] = signal_line
+    res['MACD_Hist'] = macd_hist
+    return res
