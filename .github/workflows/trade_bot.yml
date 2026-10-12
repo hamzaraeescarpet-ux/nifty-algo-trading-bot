@@ -2,8 +2,8 @@ name: Nifty 50 Algo Trading Bot Runner
 
 on:
   schedule:
-    # Triggers Monday to Friday at 03:40 UTC (09:10 AM IST)
-    - cron: '40 3 * * 1-5'
+    # Triggers Monday to Friday at 03:42 UTC (09:12 AM IST - ready for 09:15 AM market open)
+    - cron: '42 3 * * 1-5'
   workflow_dispatch: # Allows manual trigger from GitHub web / mobile app anytime
     inputs:
       mode:
@@ -21,7 +21,7 @@ permissions:
 jobs:
   run-trading-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 380
+    timeout-minutes: 360
 
     steps:
       - name: Checkout Repository

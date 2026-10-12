@@ -37,10 +37,17 @@ MACD_SIGNAL = 9
 ATR_PERIOD = 14
 ATR_SL_MULTIPLIER = 1.4     # Tight, optimal volatility Stop Loss
 
-# --- INTRADAY TIMINGS (IST) ---
+# --- TIMEZONE & INTRADAY TIMINGS (IST) ---
+from datetime import timezone, timedelta, datetime
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_now_ist() -> datetime:
+    """Returns current datetime in Indian Standard Time (IST)."""
+    return datetime.now(IST)
+
 MARKET_OPEN_TIME = "09:15"
-TRADING_START_TIME = "09:30"  # Avoid first 15 mins opening volatility
-SQUARE_OFF_TIME = "15:15"     # Auto square-off all intraday positions
+TRADING_START_TIME = "09:20"  # Small warm-up for initial candle
+SQUARE_OFF_TIME = "15:10"     # Auto square-off all intraday positions before broker rush
 MARKET_CLOSE_TIME = "15:30"
 
 # --- DEFAULT WATCHLIST & INSTRUMENTS ---

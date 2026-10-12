@@ -56,14 +56,15 @@ def start_dashboard_thread():
     t.start()
     print(f"[Dashboard] Running on http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
 
-def is_market_open() -> bool:
-    """Checks if today is a weekday and current time is within Indian market hours (09:15 to 15:30 IST)."""
-    now = datetime.now()
+def is_market_open(now_ist: datetime = None) -> bool:
+    """Checks if today is a weekday and current time is within Indian market hours (09:15 to 15:10 IST)."""
+    if now_ist is None:
+        now_ist = settings.get_now_ist()
     # Monday = 0, Friday = 4, Saturday = 5, Sunday = 6
-    if now.weekday() >= 5:
+    if now_ist.weekday() >= 5:
         return False
-    time_str = now.strftime("%H:%M")
-    return settings.MARKET_OPEN_TIME <= time_str <= settings.MARKET_CLOSE_TIME
+    time_str = now_ist.strftime("%H:%M")
+    return settings.MARKET_OPEN_TIME <= time_str < settings.SQUARE_OFF_TIME
 
 def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker):
     """
@@ -224,79 +225,129 @@ def main():
         except KeyboardInterrupt:
             return
 
-    # Regular Live / Scheduled Market Monitoring Loop
-    print("\n[Bot Engine] Standing by for live market feed...")
+    # Pre-checks for Live Trading
+    now_ist = settings.get_now_ist()
+    time_hm = now_ist.strftime("%H:%M")
+
+    # Weekend check
+    if now_ist.weekday() >= 5:
+        print(f"\n[Market Closed] Today is {now_ist.strftime('%A')} ({now_ist.strftime('%d-%b-%Y')}).")
+        print("[Market Closed] Indian Stock Exchanges (NSE/BSE) are closed on weekends.")
+        print("[Market Closed] Bot finished for today.")
+        return
+
+    # Post-market check
+    if time_hm >= settings.SQUARE_OFF_TIME:
+        print(f"\n[Market Closed] Today's session ended at {settings.SQUARE_OFF_TIME} IST (Current time: {time_hm} IST).")
+        print("[Market Closed] No new intraday trading allowed after square-off time.")
+        print("[Market Closed] For off-market replay simulation, run with '--simulate'. Exiting cleanly.")
+        return
+
+    # Pre-market wait (e.g. 09:10 to 09:15 IST)
+    if time_hm < settings.MARKET_OPEN_TIME:
+        print(f"\n[Bot Engine] Standing by. Market opens at {settings.MARKET_OPEN_TIME} IST (Current: {time_hm} IST).")
+        while True:
+            now_ist = settings.get_now_ist()
+            time_hm = now_ist.strftime("%H:%M")
+            if time_hm >= settings.MARKET_OPEN_TIME:
+                print(f"[{now_ist.strftime('%H:%M:%S')} IST] Indian Market is now OPEN! Starting algorithmic trading...")
+                break
+            time.sleep(15)
+
+    print(f"\n[Bot Engine] Active trading loop started at {settings.get_now_ist().strftime('%H:%M:%S')} IST...")
     iteration = 1
-    current_day = datetime.now().date()
+    current_day = settings.get_now_ist().date()
 
     try:
         while True:
-            now = datetime.now()
-            time_hm = now.strftime("%H:%M")
-            now_str = now.strftime("%H:%M:%S")
+            now_ist = settings.get_now_ist()
+            time_hm = now_ist.strftime("%H:%M")
+            now_str = now_ist.strftime("%H:%M:%S")
 
             # Check new day reset
-            if now.date() != current_day:
-                current_day = now.date()
+            if now_ist.date() != current_day:
+                current_day = now_ist.date()
                 risk_manager.reset_daily_metrics()
-                print(f"\n[{now_str}] New trading day started. Resetting daily metrics.")
+                print(f"\n[{now_str} IST] New trading day started. Resetting daily metrics.")
 
-            # Check market hours
-            if not is_market_open():
-                if iteration % 30 == 1:
-                    print(f"[{now_str}] Market is currently CLOSED (Trading hours: Mon-Fri 09:15 to 15:30 IST).")
-                    print(f"[{now_str}] Bot is running in standby mode. Web Dashboard available at http://{settings.DASHBOARD_HOST}:{settings.DASHBOARD_PORT}")
-                iteration += 1
-                time.sleep(60)
-                continue
-
-            # Check EOD 3:15 PM Square-off
-            is_eod_squareoff = (time_hm >= settings.SQUARE_OFF_TIME)
-
-            # Fetch latest Nifty 50 5m candles
-            df = fetcher.get_historical_data(settings.INDEX_SYMBOL, interval=settings.TIMEFRAME, period="5d")
-            if df is not None and not df.empty:
-                latest = df.iloc[-1]
-                spot_close = float(latest['Close'])
-                spot_high = float(latest['High'])
-                spot_low = float(latest['Low'])
-
-                # 1. Manage active positions
+            # 15:10 IST EOD Square-off check
+            if time_hm >= settings.SQUARE_OFF_TIME:
+                print(f"\n[{now_str} IST] Intraday Square-off time reached ({settings.SQUARE_OFF_TIME} IST)!")
+                # Force square-off all open positions
                 open_keys = list(paper_broker.open_positions.keys())
                 for symbol in open_keys:
                     pos = paper_broker.open_positions[symbol]
                     opt_type = pos.get("option_type", "CE")
-                    entry_spot = pos.get("entry_spot", spot_close)
-
-                    spot_diff = spot_close - entry_spot
-                    delta_change = spot_diff * settings.OPTION_DELTA if opt_type == "CE" else -spot_diff * settings.OPTION_DELTA
-                    curr_opt_price = max(1.0, pos["entry_price"] + delta_change)
-                    curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
-                    curr_opt_low = min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA)
-
+                    entry_spot = pos.get("entry_spot", pos["entry_price"])
+                    curr_opt_price = pos["entry_price"]
                     closed = paper_broker.update_and_check_exits(
                         symbol=symbol,
-                        high_price=curr_opt_high,
-                        low_price=curr_opt_low,
+                        high_price=curr_opt_price,
+                        low_price=curr_opt_price,
                         close_price=curr_opt_price,
-                        force_square_off=is_eod_squareoff
+                        force_square_off=True
                     )
                     if closed:
                         pnl_str = f"Rs. {closed['pnl']:+,.2f} ({closed['pnl_percent']:+,.2f}%)"
-                        tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
-                        print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
+                        print(f"  [SQUARE-OFF] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                         risk_manager.update_daily_pnl(closed['pnl'])
-                    else:
-                        # Active Trailing Stop & Breakeven Check
-                        pos = paper_broker.open_positions[symbol]
-                        updated, new_sl = risk_manager.check_trailing_stop(pos, curr_opt_price)
-                        if updated:
-                            old_sl = pos['stop_loss']
-                            paper_broker.update_trailing_sl(symbol, new_sl)
-                            print(f"[TRAILING SL] {symbol}: Stop-Loss moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
 
-                # 2. Check for new signals if allowed
-                if not is_eod_squareoff:
+                print(f"[{now_str} IST] Finalizing EOD summaries on Google Sheets...")
+                if paper_broker.sheets_sync:
+                    paper_broker.sheets_sync.update_summaries_from_history(
+                        paper_broker.trade_history,
+                        paper_broker.balance,
+                        paper_broker.initial_capital
+                    )
+
+                paper_broker.print_performance_table()
+                print(f"[{now_str} IST] All trades recorded. Google Sheets synced. Trading day finished successfully!")
+                break
+
+            try:
+                # Fetch latest Nifty 50 5m candles
+                df = fetcher.get_historical_data(settings.INDEX_SYMBOL, interval=settings.TIMEFRAME, period="5d")
+                if df is not None and not df.empty:
+                    latest = df.iloc[-1]
+                    spot_close = float(latest['Close'])
+                    spot_high = float(latest['High'])
+                    spot_low = float(latest['Low'])
+
+                    # A. Manage active positions
+                    open_keys = list(paper_broker.open_positions.keys())
+                    for symbol in open_keys:
+                        pos = paper_broker.open_positions[symbol]
+                        opt_type = pos.get("option_type", "CE")
+                        entry_spot = pos.get("entry_spot", spot_close)
+
+                        spot_diff = spot_close - entry_spot
+                        delta_change = spot_diff * settings.OPTION_DELTA if opt_type == "CE" else -spot_diff * settings.OPTION_DELTA
+                        curr_opt_price = max(1.0, pos["entry_price"] + delta_change)
+                        curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
+                        curr_opt_low = min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA)
+
+                        closed = paper_broker.update_and_check_exits(
+                            symbol=symbol,
+                            high_price=curr_opt_high,
+                            low_price=curr_opt_low,
+                            close_price=curr_opt_price,
+                            force_square_off=False
+                        )
+                        if closed:
+                            pnl_str = f"Rs. {closed['pnl']:+,.2f} ({closed['pnl_percent']:+,.2f}%)"
+                            tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
+                            print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
+                            risk_manager.update_daily_pnl(closed['pnl'])
+                        else:
+                            # Active Trailing Stop & Breakeven Check
+                            pos = paper_broker.open_positions[symbol]
+                            updated, new_sl = risk_manager.check_trailing_stop(pos, curr_opt_price)
+                            if updated:
+                                old_sl = pos['stop_loss']
+                                paper_broker.update_trailing_sl(symbol, new_sl)
+                                print(f"[TRAILING SL] {symbol}: Stop-Loss moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
+
+                    # B. Check for new signals if allowed
                     can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions))
                     if can_trade:
                         signal_data = opt_strategy.generate_option_signal(df)
@@ -324,8 +375,14 @@ def main():
                                 )
                                 pos["option_type"] = signal_data["option_type"]
                                 pos["entry_spot"] = signal_data["underlying_price"]
-                                print(f"\n[{now_str}] [SIGNAL] BUY {total_shares}x {contract} @ Rs. {opt_entry}")
+                                print(f"\n[{now_str} IST] [SIGNAL] BUY {total_shares}x {contract} @ Rs. {opt_entry}")
                                 print(f"   SL: Rs. {opt_sl} | Target: Rs. {opt_tgt} | Underlying Spot: {pos['entry_spot']}")
+                else:
+                    if iteration % 10 == 1:
+                        print(f"[{now_str} IST] Waiting for next market candle update...")
+
+            except Exception as e:
+                print(f"[{now_str} IST] Market scan warning: {e}")
 
             iteration += 1
             time.sleep(60)

@@ -60,13 +60,13 @@ class PaperExecutionEngine:
         reason: str,
         atr: float
     ) -> Dict[str, Any]:
-        """Places a simulated virtual paper trade."""
-        trade_id = f"TRADE_{len(self.trade_history) + len(self.open_positions) + 1}_{datetime.now().strftime('%H%M%S')}"
+        now_ist = settings.get_now_ist()
+        trade_id = f"TRADE_{len(self.trade_history) + len(self.open_positions) + 1}_{now_ist.strftime('%H%M%S')}"
         position = {
             "trade_id": trade_id,
             "symbol": symbol,
             "signal": signal,
-            "entry_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "entry_time": now_ist.strftime("%Y-%m-%d %H:%M:%S"),
             "entry_price": price,
             "quantity": quantity,
             "stop_loss": stop_loss,
@@ -154,7 +154,7 @@ class PaperExecutionEngine:
             
             closed_trade = {
                 **pos,
-                "exit_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "exit_time": settings.get_now_ist().strftime("%Y-%m-%d %H:%M:%S"),
                 "exit_price": round(exit_price, 2),
                 "exit_reason": exit_reason,
                 "pnl": pnl,
