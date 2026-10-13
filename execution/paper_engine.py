@@ -49,6 +49,12 @@ class PaperExecutionEngine:
         with open(self.journal_file, "w") as f:
             json.dump(data, f, indent=4, default=str)
 
+        try:
+            from dashboard.generate_report import generate_static_report
+            generate_static_report()
+        except Exception:
+            pass
+
     def execute_order(
         self,
         symbol: str,
@@ -66,7 +72,7 @@ class PaperExecutionEngine:
             "trade_id": trade_id,
             "symbol": symbol,
             "signal": signal,
-            "entry_time": now_ist.strftime("%Y-%m-%d %H:%M:%S"),
+            "entry_time": now_ist.strftime("%d-%b-%Y %H:%M:%S"),
             "entry_price": price,
             "quantity": quantity,
             "stop_loss": stop_loss,
@@ -154,7 +160,7 @@ class PaperExecutionEngine:
             
             closed_trade = {
                 **pos,
-                "exit_time": settings.get_now_ist().strftime("%Y-%m-%d %H:%M:%S"),
+                "exit_time": settings.get_now_ist().strftime("%d-%b-%Y %H:%M:%S"),
                 "exit_price": round(exit_price, 2),
                 "exit_reason": exit_reason,
                 "pnl": pnl,

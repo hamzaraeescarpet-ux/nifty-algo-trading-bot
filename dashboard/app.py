@@ -39,12 +39,34 @@ def get_stats():
     total_pnl = sum(t.get("pnl", 0) for t in history)
     win_rate = round((len(wins) / len(history)) * 100, 2) if history else 0.0
 
+    total_win_amt = sum(t.get("pnl", 0) for t in wins)
+    total_loss_amt = abs(sum(t.get("pnl", 0) for t in losses))
+    profit_factor = round(total_win_amt / total_loss_amt, 2) if total_loss_amt > 0 else (round(total_win_amt, 2) if total_win_amt > 0 else 0.0)
+
+    ce_count = sum(1 for t in history if "CE" in t.get("symbol", "") or t.get("option_type") == "CE")
+    pe_count = sum(1 for t in history if "PE" in t.get("symbol", "") or t.get("option_type") == "PE")
+
     # Equity curve calculation
     equity_curve = [initial_cap]
+    equity_labels = ["Initial"]
+    trade_pnls = []
+    trade_labels = []
+
     running_balance = initial_cap
-    for t in history:
-        running_balance += t.get("pnl", 0)
+    daily_pnl_map = {}
+
+    for i, t in enumerate(history):
+        pnl = t.get("pnl", 0)
+        running_balance += pnl
         equity_curve.append(round(running_balance, 2))
+        t_label = t.get("exit_time") or t.get("entry_time") or f"Trade {i+1}"
+        equity_labels.append(t_label.split(" ")[0] if " " in t_label else t_label)
+        trade_pnls.append(round(pnl, 2))
+        trade_labels.append(t.get("symbol", f"T{i+1}"))
+
+        # Daily grouping
+        date_key = t_label.split(" ")[0] if " " in t_label else "Unknown"
+        daily_pnl_map[date_key] = round(daily_pnl_map.get(date_key, 0.0) + pnl, 2)
 
     return jsonify({
         "initial_capital": initial_cap,
@@ -54,9 +76,16 @@ def get_stats():
         "wins": len(wins),
         "losses": len(losses),
         "win_rate": win_rate,
+        "profit_factor": profit_factor,
+        "ce_count": ce_count,
+        "pe_count": pe_count,
+        "trade_pnls": trade_pnls,
+        "trade_labels": trade_labels,
+        "equity_curve": equity_curve,
+        "equity_labels": equity_labels,
+        "daily_pnl": daily_pnl_map,
         "open_positions": journal.get("open_positions", []),
         "history": history,
-        "equity_curve": equity_curve,
         "google_sheet_url": settings.GOOGLE_SHEET_URL
     })
 

@@ -5,6 +5,39 @@ from datetime import datetime
 import gspread
 from google.oauth2.credentials import Credentials
 
+def format_datetime_str(dt_str: str) -> str:
+    """Converts any datetime format into 'DD-Mon-YYYY HH:MM:SS' (e.g. '12-Oct-2026 09:35:10')."""
+    if not dt_str:
+        return ""
+    try:
+        for fmt in (
+            "%d-%b-%Y %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%d-%b-%Y %H:%M",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S.%f"
+        ):
+            try:
+                dt = datetime.strptime(str(dt_str).strip(), fmt)
+                return dt.strftime("%d-%b-%Y %H:%M:%S")
+            except ValueError:
+                pass
+    except Exception:
+        pass
+    return str(dt_str)
+
+def extract_date_and_month(dt_str: str):
+    """Returns (DD-Mon-YYYY, Mon-YYYY) for grouping."""
+    formatted = format_datetime_str(dt_str)
+    try:
+        dt = datetime.strptime(formatted, "%d-%b-%Y %H:%M:%S")
+        return dt.strftime("%d-%b-%Y"), dt.strftime("%b-%Y")
+    except Exception:
+        parts = formatted.split(" ")
+        date_p = parts[0] if parts else formatted
+        return date_p, date_p
+
 class GoogleSheetsSync:
     """
     Syncs trades, daily PnL, and monthly statistics directly to Google Sheets.
@@ -114,8 +147,8 @@ class GoogleSheetsSync:
             return
 
         try:
-            buy_time = str(trade.get("entry_time", ""))
-            sell_time = str(trade.get("exit_time", ""))
+            buy_time = format_datetime_str(trade.get("entry_time", ""))
+            sell_time = format_datetime_str(trade.get("exit_time", ""))
             
             row = [
                 trade.get("trade_id", ""),
@@ -136,6 +169,44 @@ class GoogleSheetsSync:
         except Exception as e:
             print(f"[GoogleSheets] Failed to log trade: {e}")
 
+    def sync_all_history_to_sheets(self, history: List[Dict[str, Any]], current_balance: float, initial_capital: float = 100000.0):
+        """Rewrites all worksheets with standardized date formatting."""
+        if not self.trades_sheet:
+            return
+
+        try:
+            self._ensure_trades_header()
+            headers = [
+                "Trade ID", "Instrument", "Signal", "Buy Time (Entry)",
+                "Sell Time (Exit)", "Buy Price (Rs)", "Sell Price (Rs)", "Qty",
+                "Net P&L (Rs)", "Return (%)", "Exit Reason", "Status"
+            ]
+            rows = [headers]
+            for trade in history:
+                buy_time = format_datetime_str(trade.get("entry_time", ""))
+                sell_time = format_datetime_str(trade.get("exit_time", ""))
+                rows.append([
+                    trade.get("trade_id", ""),
+                    trade.get("symbol", ""),
+                    trade.get("signal", "BUY"),
+                    buy_time,
+                    sell_time,
+                    round(float(trade.get("entry_price", 0.0)), 2),
+                    round(float(trade.get("exit_price", 0.0)), 2),
+                    int(trade.get("quantity", 0)),
+                    round(float(trade.get("pnl", 0.0)), 2),
+                    f"{trade.get('pnl_percent', 0.0):+,.2f}%",
+                    trade.get("exit_reason", ""),
+                    trade.get("status", "CLOSED")
+                ])
+
+            self.trades_sheet.clear()
+            self.trades_sheet.update(range_name='A1', values=rows)
+            print(f"[GoogleSheets] Synced all {len(history)} trades to Trade Logs!")
+            self.update_summaries_from_history(history, current_balance, initial_capital)
+        except Exception as e:
+            print(f"[GoogleSheets] Failed to sync full history: {e}")
+
     def update_summaries_from_history(self, history: List[Dict[str, Any]], current_balance: float, initial_capital: float = 100000.0):
         """
         Groups all trades by Day and Month, calculates metrics,
@@ -151,8 +222,7 @@ class GoogleSheetsSync:
             for t in history:
                 # Parse date
                 raw_time = t.get("exit_time") or t.get("entry_time") or ""
-                date_part = raw_time.split(" ")[0] if " " in raw_time else raw_time[:10]
-                month_part = date_part[:7] if len(date_part) >= 7 else "Unknown"
+                date_part, month_part = extract_date_and_month(raw_time)
 
                 daily_groups.setdefault(date_part, []).append(t)
                 monthly_groups.setdefault(month_part, []).append(t)

@@ -2,18 +2,23 @@ name: Nifty 50 Algo Trading Bot Runner
 
 on:
   schedule:
-    # Triggers Monday to Friday at 03:42 UTC (09:12 AM IST - ready for 09:15 AM market open)
-    - cron: '42 3 * * 1-5'
-  workflow_dispatch: # Allows manual trigger from GitHub web / mobile app anytime
+    # Triggers Monday to Friday at 03:39 UTC (09:09 AM IST) and 03:44 UTC (09:14 AM IST)
+    - cron: '39 3 * * 1-5'
+    - cron: '44 3 * * 1-5'
+  workflow_dispatch: # Allows 1-click manual trigger from GitHub web / mobile app anytime
     inputs:
       mode:
         description: 'Execution Mode (simulate to test now, live for real market hours)'
         required: true
-        default: 'simulate'
+        default: 'live'
         type: choice
         options:
-          - simulate
           - live
+          - simulate
+
+concurrency:
+  group: nifty-trading-bot-execution
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -61,6 +66,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add logs/paper_trades_journal.json || true
-          git commit -m "Auto-update trade journal [skip ci]" || echo "No changes to commit"
+          git add logs/paper_trades_journal.json dashboard/report.html || true
+          git commit -m "Auto-update trade journal and dashboard report [skip ci]" || echo "No changes to commit"
           git push origin main || echo "Push skipped or not needed"

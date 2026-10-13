@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nifty 50 Algo Trading Bot - Dashboard</title>
+    <title>Nifty 50 Algo Trading Bot - Pro Analytics Dashboard</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js CDN -->
@@ -14,8 +14,9 @@
             theme: {
                 extend: {
                     colors: {
-                        darkBg: '#0f172a',
-                        cardBg: '#1e293b',
+                        darkBg: '#0b0f19',
+                        cardBg: '#111827',
+                        cardBorder: '#1f2937',
                         accent: '#38bdf8',
                         tradeGreen: '#10b981',
                         tradeRed: '#ef4444'
@@ -24,136 +25,233 @@
             }
         }
     </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    </style>
 </head>
-<body class="bg-darkBg text-slate-100 min-h-screen font-sans antialiased">
-    <!-- Navbar -->
-    <header class="border-b border-slate-800 bg-cardBg/70 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+<body class="bg-darkBg text-slate-100 min-h-screen antialiased selection:bg-sky-500 selection:text-white">
+
+    <!-- Top Sticky Header -->
+    <header class="border-b border-cardBorder bg-cardBg/90 backdrop-blur sticky top-0 z-50 px-6 py-3.5 flex flex-wrap justify-between items-center gap-4">
         <div class="flex items-center gap-3">
-            <div class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
-            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                <span>⚡ Nifty 50 Algo Trading Bot</span>
-                <span class="text-xs bg-sky-950 text-sky-400 border border-sky-800 px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">Options Paper Mode</span>
-            </h1>
+            <div class="h-3 w-3 rounded-full bg-emerald-400 animate-pulse shadow-lg shadow-emerald-500/50"></div>
+            <div>
+                <h1 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span>⚡ Nifty 50 Algo Trading Bot</span>
+                    <span class="text-[10px] bg-sky-950/80 text-sky-400 border border-sky-800/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-bold">Paper Trading Live</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">Institutional Intraday Options Strategy (Supertrend + VWAP + EMA + ADX + MACD)</p>
+            </div>
         </div>
-        <div class="flex items-center gap-4">
-            <a id="sheetLink" href="#" target="_blank" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-md">
+        
+        <div class="flex items-center gap-3">
+            <a id="sheetLink" href="#" target="_blank" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition shadow-md shadow-emerald-900/40">
                 <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
-                Open Google Sheet
+                <span>Live Google Sheet</span>
             </a>
-            <span id="lastUpdated" class="text-xs text-slate-400">Syncing...</span>
+            <button onclick="fetchDashboardData()" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg transition border border-slate-700">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Refresh</span>
+            </button>
+            <span id="lastUpdated" class="text-[11px] text-slate-400 font-mono">Syncing...</span>
         </div>
     </header>
 
     <!-- Main Container -->
-    <main class="max-w-7xl mx-auto p-6 space-y-6">
-        
-        <!-- Top Metrics Cards -->
+    <main class="max-w-7xl mx-auto p-5 sm:p-6 space-y-6">
+
+        <!-- Top KPI Metric Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Balance Card -->
-            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
-                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Virtual Balance</span>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="valBalance" class="text-2xl font-extrabold text-white">Rs. 1,00,000.00</span>
+            
+            <!-- Virtual Balance -->
+            <div class="bg-cardBg border border-cardBorder rounded-xl p-4.5 shadow-lg relative overflow-hidden">
+                <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                    <span>Virtual Capital</span>
+                    <span class="text-sky-400">₹</span>
                 </div>
-                <div class="mt-2 text-xs text-slate-400">Starting: Rs. 1,00,000.00</div>
+                <div class="mt-2 text-2xl font-black text-white font-mono" id="valBalance">Rs. 1,00,000.00</div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Initial: Rs. 1,00,000.00</span>
+                    <span id="valReturnPctBadge" class="font-bold px-1.5 py-0.5 rounded text-[10px]">0.00%</span>
+                </div>
             </div>
 
-            <!-- Total PnL Card -->
-            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
-                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Realized P&L</span>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="valPnL" class="text-2xl font-extrabold text-emerald-400">Rs. 0.00</span>
+            <!-- Net Realized PnL -->
+            <div class="bg-cardBg border border-cardBorder rounded-xl p-4.5 shadow-lg relative overflow-hidden">
+                <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                    <span>Net Realized P&L</span>
+                    <span id="pnlIndicator" class="h-2 w-2 rounded-full bg-slate-500"></span>
                 </div>
-                <div id="valReturnPct" class="mt-2 text-xs text-slate-400">Return: 0.00%</div>
+                <div class="mt-2 text-2xl font-black font-mono" id="valPnL">Rs. 0.00</div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span id="valTradesCount">0 Trades Completed</span>
+                    <span id="valProfitFactor" class="text-slate-300 font-mono font-semibold">PF: 0.00</span>
+                </div>
             </div>
 
-            <!-- Win Rate Card -->
-            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
-                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Win Rate</span>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="valWinRate" class="text-2xl font-extrabold text-white">0%</span>
+            <!-- Win Rate -->
+            <div class="bg-cardBg border border-cardBorder rounded-xl p-4.5 shadow-lg relative overflow-hidden">
+                <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                    <span>Win Rate</span>
+                    <span class="text-emerald-400">🎯</span>
                 </div>
-                <div id="valWinLossCount" class="mt-2 text-xs text-slate-400">0 Wins / 0 Losses</div>
+                <div class="mt-2 text-2xl font-black text-white font-mono" id="valWinRate">0.0%</div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span id="valWinLossCount" class="font-mono">0 Wins / 0 Losses</span>
+                    <span id="cePeCount" class="text-[10px] text-sky-400 font-mono">0 CE / 0 PE</span>
+                </div>
             </div>
 
-            <!-- Active Positions Card -->
-            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
-                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Positions</span>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="valOpenTrades" class="text-2xl font-extrabold text-sky-400">0</span>
+            <!-- Active Positions -->
+            <div class="bg-cardBg border border-cardBorder rounded-xl p-4.5 shadow-lg relative overflow-hidden">
+                <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                    <span>Active Positions</span>
+                    <span class="text-sky-400 animate-pulse">●</span>
                 </div>
-                <div class="mt-2 text-xs text-slate-400">Max Allowed: 3</div>
+                <div class="mt-2 text-2xl font-black text-sky-400 font-mono" id="valOpenTrades">0</div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Max Allowed: 3 Positions</span>
+                    <span class="text-amber-400 text-[10px]">Trailing SL Active</span>
+                </div>
             </div>
+
         </div>
 
-        <!-- Charts Section -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Equity Curve Chart -->
-            <div class="lg:col-span-2 bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
-                <h3 class="text-sm font-semibold text-slate-200 mb-4">📈 Cumulative Profit Curve (Equity Growth)</h3>
-                <div class="h-64">
+        <!-- Charts Grid (4 Interactive Charts) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            
+            <!-- Chart 1: Equity Curve Line Chart -->
+            <div class="lg:col-span-2 bg-cardBg border border-cardBorder rounded-xl p-5 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            <span>📈 Equity Growth Curve</span>
+                            <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">Capital Over Trades</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Real-time cumulative account balance trajectory</p>
+                    </div>
+                </div>
+                <div class="h-64 sm:h-72">
                     <canvas id="equityChart"></canvas>
                 </div>
             </div>
 
-            <!-- Win / Loss Doughnut Chart -->
-            <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg">
-                <h3 class="text-sm font-semibold text-slate-200 mb-4">🎯 Win / Loss Ratio</h3>
-                <div class="h-64 flex items-center justify-center">
+            <!-- Chart 2: Win / Loss Doughnut Chart -->
+            <div class="bg-cardBg border border-cardBorder rounded-xl p-5 shadow-lg flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-1">
+                        <span>🎯 Win vs Loss Breakdown</span>
+                    </h3>
+                    <p class="text-xs text-slate-400">Ratio of profitable vs losing trade executions</p>
+                </div>
+                <div class="h-56 sm:h-60 flex items-center justify-center my-auto">
                     <canvas id="winLossChart"></canvas>
                 </div>
             </div>
+
         </div>
 
-        <!-- Active Open Positions -->
-        <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
-            <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full bg-sky-400"></span>
-                Active Open Positions
-            </h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-slate-300">
-                    <thead class="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-700">
+        <!-- Secondary Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+            <!-- Chart 3: P&L Per Trade Bar Chart -->
+            <div class="lg:col-span-2 bg-cardBg border border-cardBorder rounded-xl p-5 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            <span>📊 Realized P&L Per Trade (₹)</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Green bars = Gains | Red bars = Losses per executed option trade</p>
+                    </div>
+                </div>
+                <div class="h-60">
+                    <canvas id="pnlBarChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: Call (CE) vs Put (PE) Distribution -->
+            <div class="bg-cardBg border border-cardBorder rounded-xl p-5 shadow-lg flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-1">
+                        <span>⚖️ Call (CE) vs Put (PE) Trades</span>
+                    </h3>
+                    <p class="text-xs text-slate-400">Directional distribution of executed option contracts</p>
+                </div>
+                <div class="h-52 flex items-center justify-center my-auto">
+                    <canvas id="cePeChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Active Open Positions Section -->
+        <div class="bg-cardBg border border-cardBorder rounded-xl p-5 shadow-lg space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                    <span>Active Open Positions</span>
+                </h3>
+                <span class="text-xs text-slate-400 font-mono">Live Intraday</span>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-slate-800">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="uppercase bg-slate-800/80 text-slate-400 font-semibold border-b border-slate-700">
                         <tr>
                             <th class="px-4 py-3">Instrument</th>
-                            <th class="px-4 py-3">Entry Time</th>
-                            <th class="px-4 py-3">Entry Price</th>
-                            <th class="px-4 py-3">Quantity</th>
+                            <th class="px-4 py-3">Type</th>
+                            <th class="px-4 py-3">Buy Time</th>
+                            <th class="px-4 py-3">Buy Price</th>
+                            <th class="px-4 py-3">Qty</th>
                             <th class="px-4 py-3">Stop Loss</th>
                             <th class="px-4 py-3">Target</th>
                             <th class="px-4 py-3">Status</th>
                         </tr>
                     </thead>
-                    <tbody id="openPositionsBody">
+                    <tbody id="openPositionsBody" class="divide-y divide-slate-800">
                         <tr>
-                            <td colspan="7" class="px-4 py-6 text-center text-slate-500 italic">No open positions currently. Scanning market...</td>
+                            <td colspan="8" class="px-4 py-6 text-center text-slate-500 italic">No open positions currently. Scanning market...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Trade History Table -->
-        <div class="bg-cardBg border border-slate-800 rounded-xl p-5 shadow-lg space-y-4">
-            <h3 class="text-sm font-semibold text-slate-200">📜 Trade Journal (Closed Trades)</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-slate-300">
-                    <thead class="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-700">
+        <!-- Full Trade Journal History Table -->
+        <div class="bg-cardBg border border-cardBorder rounded-xl p-5 shadow-lg space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <span>📜 Trade History Journal</span>
+                        <span id="journalCount" class="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded">0 Trades</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">All closed trades with complete entry/exit timestamps and P&L</p>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto rounded-lg border border-slate-800 max-h-[500px]">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="sticky top-0 uppercase bg-slate-800 text-slate-400 font-semibold border-b border-slate-700 z-10">
                         <tr>
-                            <th class="px-4 py-3">Trade ID</th>
-                            <th class="px-4 py-3">Exit Time</th>
-                            <th class="px-4 py-3">Instrument</th>
-                            <th class="px-4 py-3">Entry</th>
-                            <th class="px-4 py-3">Exit</th>
-                            <th class="px-4 py-3">Qty</th>
-                            <th class="px-4 py-3">P&L (Rs)</th>
-                            <th class="px-4 py-3">Return</th>
-                            <th class="px-4 py-3">Exit Reason</th>
+                            <th class="px-3.5 py-3">Trade ID</th>
+                            <th class="px-3.5 py-3">Instrument</th>
+                            <th class="px-3.5 py-3">Buy Time</th>
+                            <th class="px-3.5 py-3">Sell Time</th>
+                            <th class="px-3.5 py-3">Buy Price</th>
+                            <th class="px-3.5 py-3">Sell Price</th>
+                            <th class="px-3.5 py-3">Qty</th>
+                            <th class="px-3.5 py-3">Net P&L (₹)</th>
+                            <th class="px-3.5 py-3">Return</th>
+                            <th class="px-3.5 py-3">Exit Reason</th>
                         </tr>
                     </thead>
-                    <tbody id="tradeHistoryBody">
+                    <tbody id="tradeHistoryBody" class="divide-y divide-slate-800 font-mono">
                         <tr>
-                            <td colspan="9" class="px-4 py-6 text-center text-slate-500 italic">No closed trades recorded yet.</td>
+                            <td colspan="10" class="px-4 py-8 text-center text-slate-500 italic">No closed trades recorded yet.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -162,22 +260,28 @@
 
     </main>
 
-    <!-- Dashboard JavaScript -->
+    <!-- Dashboard JavaScript & Live Charts Logic -->
     <script>
         let equityChartInstance = null;
         let winLossChartInstance = null;
+        let pnlBarChartInstance = null;
+        let cePeChartInstance = null;
 
         function initCharts() {
+            // Chart 1: Equity Curve
             const ctxEq = document.getElementById('equityChart').getContext('2d');
             equityChartInstance = new Chart(ctxEq, {
                 type: 'line',
                 data: {
-                    labels: ['Start'],
+                    labels: ['Initial'],
                     datasets: [{
-                        label: 'Balance (Rs)',
+                        label: 'Capital (₹)',
                         data: [100000],
                         borderColor: '#38bdf8',
-                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        backgroundColor: 'rgba(56, 189, 248, 0.08)',
+                        borderWidth: 2.5,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
                         fill: true,
                         tension: 0.3
                     }]
@@ -185,14 +289,22 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `Capital: Rs. ${Number(ctx.parsed.y).toLocaleString('en-IN')}`
+                            }
+                        }
+                    },
                     scales: {
-                        x: { grid: { color: '#334155' } },
-                        y: { grid: { color: '#334155' } }
+                        x: { grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                        y: { grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
                     }
                 }
             });
 
+            // Chart 2: Win / Loss Doughnut
             const ctxWl = document.getElementById('winLossChart').getContext('2d');
             winLossChartInstance = new Chart(ctxWl, {
                 type: 'doughnut',
@@ -201,13 +313,70 @@
                     datasets: [{
                         data: [0, 0],
                         backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, padding: 15 } }
+                    },
+                    cutout: '68%'
+                }
+            });
+
+            // Chart 3: P&L Per Trade Bar Chart
+            const ctxPnl = document.getElementById('pnlBarChart').getContext('2d');
+            pnlBarChartInstance = new Chart(ctxPnl, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'P&L (₹)',
+                        data: [],
+                        backgroundColor: [],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `P&L: Rs. ${Number(ctx.parsed.y).toLocaleString('en-IN')}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                        y: { grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // Chart 4: CE vs PE Trades
+            const ctxCePe = document.getElementById('cePeChart').getContext('2d');
+            cePeChartInstance = new Chart(ctxCePe, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Call (CE)', 'Put (PE)'],
+                    datasets: [{
+                        data: [0, 0],
+                        backgroundColor: ['#06b6d4', '#f59e0b'],
                         borderWidth: 0
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, padding: 15 } }
+                    },
+                    cutout: '60%'
                 }
             });
         }
@@ -218,71 +387,99 @@
                 if (!res.ok) return;
                 const data = await res.json();
 
-                // Update cards
+                // 1. Update KPI Cards
                 document.getElementById('valBalance').textContent = `Rs. ${Number(data.balance).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
                 
                 const pnlEl = document.getElementById('valPnL');
-                pnlEl.textContent = `Rs. ${Number(data.total_pnl).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-                pnlEl.className = data.total_pnl >= 0 ? 'text-2xl font-extrabold text-emerald-400' : 'text-2xl font-extrabold text-rose-400';
+                const pnlInd = document.getElementById('pnlIndicator');
+                const isProfit = (data.total_pnl >= 0);
+                
+                pnlEl.textContent = `${isProfit ? '+' : ''}Rs. ${Number(data.total_pnl).toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                pnlEl.className = isProfit ? 'text-2xl font-black font-mono text-emerald-400' : 'text-2xl font-black font-mono text-rose-400';
+                pnlInd.className = isProfit ? 'h-2 w-2 rounded-full bg-emerald-400' : 'h-2 w-2 rounded-full bg-rose-400';
 
                 const retPct = ((data.total_pnl / data.initial_capital) * 100).toFixed(2);
-                document.getElementById('valReturnPct').textContent = `Return: ${retPct}%`;
+                const retBadge = document.getElementById('valReturnPctBadge');
+                retBadge.textContent = `${retPct >= 0 ? '+' : ''}${retPct}%`;
+                retBadge.className = retPct >= 0 ? 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800' : 'font-bold px-1.5 py-0.5 rounded text-[10px] bg-rose-950 text-rose-400 border border-rose-800';
 
                 document.getElementById('valWinRate').textContent = `${data.win_rate}%`;
                 document.getElementById('valWinLossCount').textContent = `${data.wins} Wins / ${data.losses} Losses`;
+                document.getElementById('valTradesCount').textContent = `${data.total_trades} Trades Completed`;
+                document.getElementById('valProfitFactor').textContent = `PF: ${data.profit_factor}`;
+                document.getElementById('cePeCount').textContent = `${data.ce_count || 0} CE / ${data.pe_count || 0} PE`;
                 document.getElementById('valOpenTrades').textContent = data.open_positions.length;
-                
+                document.getElementById('journalCount').textContent = `${data.total_trades} Trades`;
+
                 if (data.google_sheet_url) {
                     document.getElementById('sheetLink').href = data.google_sheet_url;
                 }
                 document.getElementById('lastUpdated').textContent = `Synced: ${new Date().toLocaleTimeString()}`;
 
-                // Update Charts
+                // 2. Update Equity Curve Chart
                 if (data.equity_curve && data.equity_curve.length > 0) {
-                    equityChartInstance.data.labels = data.equity_curve.map((_, idx) => `Trade ${idx}`);
+                    equityChartInstance.data.labels = data.equity_labels || data.equity_curve.map((_, i) => i === 0 ? 'Start' : `T${i}`);
                     equityChartInstance.data.datasets[0].data = data.equity_curve;
                     equityChartInstance.update();
                 }
 
+                // 3. Update Win / Loss Doughnut
                 winLossChartInstance.data.datasets[0].data = [data.wins, data.losses];
                 winLossChartInstance.update();
 
-                // Render Open Positions
+                // 4. Update PnL Bar Chart
+                if (data.trade_pnls && data.trade_pnls.length > 0) {
+                    pnlBarChartInstance.data.labels = data.trade_labels || data.trade_pnls.map((_, i) => `Trade ${i+1}`);
+                    pnlBarChartInstance.data.datasets[0].data = data.trade_pnls;
+                    pnlBarChartInstance.data.datasets[0].backgroundColor = data.trade_pnls.map(v => v >= 0 ? '#10b981' : '#ef4444');
+                    pnlBarChartInstance.update();
+                }
+
+                // 5. Update CE vs PE Doughnut
+                cePeChartInstance.data.datasets[0].data = [data.ce_count || 0, data.pe_count || 0];
+                cePeChartInstance.update();
+
+                // 6. Render Active Open Positions Table
                 const openBody = document.getElementById('openPositionsBody');
-                if (data.open_positions.length === 0) {
-                    openBody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-500 italic">No open positions currently. Scanning market...</td></tr>';
+                if (!data.open_positions || data.open_positions.length === 0) {
+                    openBody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-slate-500 italic">No open positions currently. Scanning market...</td></tr>';
                 } else {
                     openBody.innerHTML = data.open_positions.map(p => `
-                        <tr class="border-b border-slate-800 hover:bg-slate-800/40">
-                            <td class="px-4 py-3 font-semibold text-white">${p.symbol}</td>
-                            <td class="px-4 py-3 text-slate-400">${p.entry_time}</td>
-                            <td class="px-4 py-3">Rs. ${p.entry_price}</td>
-                            <td class="px-4 py-3">${p.quantity}</td>
-                            <td class="px-4 py-3 text-rose-400">Rs. ${p.stop_loss}</td>
-                            <td class="px-4 py-3 text-emerald-400">Rs. ${p.target}</td>
-                            <td class="px-4 py-3"><span class="bg-sky-950 text-sky-400 border border-sky-800 px-2 py-0.5 rounded text-xs">OPEN</span></td>
+                        <tr class="hover:bg-slate-800/40 transition">
+                            <td class="px-4 py-3 font-bold text-white font-mono">${p.symbol}</td>
+                            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${p.symbol.includes('CE') ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}">${p.symbol.includes('CE') ? 'CALL' : 'PUT'}</span></td>
+                            <td class="px-4 py-3 text-slate-400 font-mono text-[11px]">${p.entry_time}</td>
+                            <td class="px-4 py-3 font-mono font-semibold">₹${p.entry_price}</td>
+                            <td class="px-4 py-3 font-mono">${p.quantity}</td>
+                            <td class="px-4 py-3 text-rose-400 font-mono font-semibold">₹${p.stop_loss}</td>
+                            <td class="px-4 py-3 text-emerald-400 font-mono font-semibold">₹${p.target}</td>
+                            <td class="px-4 py-3"><span class="bg-sky-950 text-sky-400 border border-sky-800 px-2 py-0.5 rounded text-[10px] font-bold">OPEN</span></td>
                         </tr>
                     `).join('');
                 }
 
-                // Render Trade History
+                // 7. Render Closed Trade History Table
                 const histBody = document.getElementById('tradeHistoryBody');
-                if (data.history.length === 0) {
-                    histBody.innerHTML = '<tr><td colspan="9" class="px-4 py-6 text-center text-slate-500 italic">No closed trades recorded yet.</td></tr>';
+                if (!data.history || data.history.length === 0) {
+                    histBody.innerHTML = '<tr><td colspan="10" class="px-4 py-8 text-center text-slate-500 italic">No closed trades recorded yet.</td></tr>';
                 } else {
-                    histBody.innerHTML = data.history.slice().reverse().map(t => `
-                        <tr class="border-b border-slate-800 hover:bg-slate-800/40">
-                            <td class="px-4 py-3 font-mono text-xs text-slate-400">${t.trade_id}</td>
-                            <td class="px-4 py-3 text-slate-400 text-xs">${t.exit_time || t.entry_time}</td>
-                            <td class="px-4 py-3 font-medium text-white">${t.symbol}</td>
-                            <td class="px-4 py-3">Rs. ${t.entry_price}</td>
-                            <td class="px-4 py-3">Rs. ${t.exit_price}</td>
-                            <td class="px-4 py-3">${t.quantity}</td>
-                            <td class="px-4 py-3 font-bold ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">Rs. ${t.pnl}</td>
-                            <td class="px-4 py-3 ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${t.pnl_percent}%</td>
-                            <td class="px-4 py-3 text-xs text-slate-400">${t.exit_reason}</td>
+                    histBody.innerHTML = data.history.slice().reverse().map(t => {
+                        const isWin = (t.pnl >= 0);
+                        return `
+                        <tr class="hover:bg-slate-800/40 transition">
+                            <td class="px-3.5 py-2.5 text-slate-400 text-[11px]">${t.trade_id}</td>
+                            <td class="px-3.5 py-2.5 font-bold text-white">${t.symbol}</td>
+                            <td class="px-3.5 py-2.5 text-slate-300 text-[11px]">${t.entry_time}</td>
+                            <td class="px-3.5 py-2.5 text-slate-300 text-[11px]">${t.exit_time || '-'}</td>
+                            <td class="px-3.5 py-2.5">₹${t.entry_price}</td>
+                            <td class="px-3.5 py-2.5">₹${t.exit_price}</td>
+                            <td class="px-3.5 py-2.5">${t.quantity}</td>
+                            <td class="px-3.5 py-2.5 font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}">${isWin ? '+' : ''}₹${t.pnl}</td>
+                            <td class="px-3.5 py-2.5"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${isWin ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}">${isWin ? '+' : ''}${t.pnl_percent}%</span></td>
+                            <td class="px-3.5 py-2.5 text-[11px] text-slate-400">${t.exit_reason}</td>
                         </tr>
-                    `).join('');
+                        `;
+                    }).join('');
                 }
 
             } catch (err) {
@@ -293,7 +490,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             initCharts();
             fetchDashboardData();
-            setInterval(fetchDashboardData, 5000); // Poll every 5s
+            setInterval(fetchDashboardData, 3000); // Live poll every 3s
         });
     </script>
 </body>
