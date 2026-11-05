@@ -57,6 +57,7 @@ class GoogleSheetsSync:
         self.trades_sheet = None
         self.daily_sheet = None
         self.monthly_sheet = None
+        self.ai_brain_sheet = None
         self.sheet_url = ""
         self._initialize()
 
@@ -107,6 +108,13 @@ class GoogleSheetsSync:
                 self.monthly_sheet = self.spreadsheet.add_worksheet(title="Monthly Summary", rows=100, cols=10)
             self._ensure_monthly_header()
 
+            # 4. Setup 'AI Brain & Learnings' tab
+            try:
+                self.ai_brain_sheet = self.spreadsheet.worksheet("AI Brain & Learnings")
+            except gspread.WorksheetNotFound:
+                self.ai_brain_sheet = self.spreadsheet.add_worksheet(title="AI Brain & Learnings", rows=500, cols=10)
+            self._ensure_ai_brain_header()
+
         except Exception as e:
             print(f"[GoogleSheets] Initialization error: {e}")
 
@@ -140,6 +148,41 @@ class GoogleSheetsSync:
         curr_headers = self.monthly_sheet.row_values(1)
         if not curr_headers or curr_headers != headers:
             self.monthly_sheet.insert_row(headers, index=1)
+
+    def _ensure_ai_brain_header(self):
+        """Ensures clean header row in AI Brain & Learnings."""
+        if not self.ai_brain_sheet:
+            return
+        headers = [
+            "Date", "Time (IST)", "Market Regime", "Total Evaluated Trades",
+            "Win Rate (%)", "Key Mistake / Pattern Identified",
+            "Self-Optimization Action Taken", "Adaptive Settings (ADX, BE_R, Target_R, Max_Trades)"
+        ]
+        curr_headers = self.ai_brain_sheet.row_values(1)
+        if not curr_headers or curr_headers != headers:
+            self.ai_brain_sheet.insert_row(headers, index=1)
+
+    def log_ai_learning(self, log_entry: Dict[str, Any]):
+        """Logs daily self-learning insights to Google Sheets."""
+        if not self.ai_brain_sheet:
+            return
+        try:
+            params = log_entry.get("parameters", {})
+            param_str = f"ADX>={params.get('adx_min_threshold')}, BE={params.get('breakeven_r_ratio')}R, Tgt={params.get('risk_reward_ratio')}R, MaxTrades={params.get('max_daily_trades')}"
+            row = [
+                log_entry.get("date", ""),
+                log_entry.get("time", ""),
+                log_entry.get("regime", ""),
+                int(log_entry.get("total_trades", 0)),
+                f"{log_entry.get('win_rate', 0.0):.2f}%",
+                log_entry.get("pattern_identified", ""),
+                log_entry.get("action_taken", ""),
+                param_str
+            ]
+            self.ai_brain_sheet.append_row(row)
+            print(f"[GoogleSheets] Logged AI Self-Learning insights to 'AI Brain & Learnings' tab!")
+        except Exception as e:
+            print(f"[GoogleSheets] Failed to log AI learning: {e}")
 
     def log_trade(self, trade: Dict[str, Any]):
         """Appends a closed trade to the Trade Logs worksheet."""

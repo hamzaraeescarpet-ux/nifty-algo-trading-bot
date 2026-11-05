@@ -52,6 +52,15 @@ def generate_static_report():
         trade_pnls.append(round(pnl, 2))
         trade_labels.append(t.get("symbol", f"T{i+1}"))
 
+    ADAPTIVE_FILE = BASE_DIR / "config" / "adaptive_weights.json"
+    adaptive_weights = {}
+    if ADAPTIVE_FILE.exists():
+        try:
+            with open(ADAPTIVE_FILE, "r", encoding="utf-8") as f:
+                adaptive_weights = json.load(f)
+        except Exception:
+            pass
+
     stats_data = {
         "initial_capital": initial_cap,
         "balance": round(balance, 2),
@@ -69,6 +78,7 @@ def generate_static_report():
         "equity_labels": equity_labels,
         "open_positions": journal.get("open_positions", []),
         "history": history,
+        "adaptive_weights": adaptive_weights,
         "google_sheet_url": settings.GOOGLE_SHEET_URL
     }
 

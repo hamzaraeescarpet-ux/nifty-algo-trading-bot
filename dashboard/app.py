@@ -8,6 +8,17 @@ app = Flask(__name__, template_folder="templates")
 BASE_DIR = Path(__file__).resolve().parent.parent
 JOURNAL_FILE = BASE_DIR / "logs" / "paper_trades_journal.json"
 
+ADAPTIVE_FILE = BASE_DIR / "config" / "adaptive_weights.json"
+
+def load_adaptive_weights():
+    if ADAPTIVE_FILE.exists():
+        try:
+            with open(ADAPTIVE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
 def load_journal():
     if JOURNAL_FILE.exists():
         try:
@@ -68,6 +79,8 @@ def get_stats():
         date_key = t_label.split(" ")[0] if " " in t_label else "Unknown"
         daily_pnl_map[date_key] = round(daily_pnl_map.get(date_key, 0.0) + pnl, 2)
 
+    adaptive_weights = load_adaptive_weights()
+
     return jsonify({
         "initial_capital": initial_cap,
         "balance": round(balance, 2),
@@ -86,6 +99,7 @@ def get_stats():
         "daily_pnl": daily_pnl_map,
         "open_positions": journal.get("open_positions", []),
         "history": history,
+        "adaptive_weights": adaptive_weights,
         "google_sheet_url": settings.GOOGLE_SHEET_URL
     })
 

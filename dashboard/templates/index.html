@@ -65,6 +65,32 @@
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto p-5 sm:p-6 space-y-6">
 
+        <!-- AI Self-Learning & Market Regime Banner -->
+        <div class="bg-gradient-to-r from-sky-950/40 via-cardBg to-purple-950/40 border border-sky-850 rounded-xl p-4 shadow-lg flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 text-lg">
+                    🧠
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-300">AI Self-Learning Engine:</span>
+                        <span id="aiRegimeBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-950 text-sky-400 border border-sky-700">BALANCED_TREND</span>
+                        <span id="aiConfidenceBadge" class="text-[10px] font-mono text-slate-400">75% Confidence</span>
+                    </div>
+                    <p id="aiInsightText" class="text-xs text-slate-400 mt-0.5">Walk-Forward Adaptive Optimizer active. Dynamically adjusting ADX filters and trailing stops.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] font-mono bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300" id="aiActiveParams">
+                <span>ADX &ge; <b class="text-sky-400" id="paramAdx">20.0</b></span>
+                <span class="text-slate-600">|</span>
+                <span>BE: <b class="text-amber-400" id="paramBe">0.6R</b></span>
+                <span class="text-slate-600">|</span>
+                <span>Tgt: <b class="text-emerald-400" id="paramTgt">1:1.8</b></span>
+                <span class="text-slate-600">|</span>
+                <span>MaxTrades: <b class="text-purple-400" id="paramMaxTrades">3</b></span>
+            </div>
+        </div>
+
         <!-- Top KPI Metric Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
@@ -415,6 +441,34 @@
                     document.getElementById('sheetLink').href = data.google_sheet_url;
                 }
                 document.getElementById('lastUpdated').textContent = `Synced: ${new Date().toLocaleTimeString()}`;
+
+                // Update AI Self-Learning Info
+                if (data.adaptive_weights) {
+                    const aw = data.adaptive_weights;
+                    const regime = aw.market_regime || 'BALANCED_TREND';
+                    const params = aw.parameters || {};
+                    const regimeEl = document.getElementById('aiRegimeBadge');
+                    regimeEl.textContent = regime;
+                    if (regime.includes('BULLISH')) {
+                        regimeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-700';
+                    } else if (regime.includes('BEARISH')) {
+                        regimeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-950 text-rose-400 border border-rose-700';
+                    } else if (regime.includes('CHOPPY')) {
+                        regimeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-950 text-amber-400 border border-amber-700';
+                    } else {
+                        regimeEl.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-950 text-sky-400 border border-sky-700';
+                    }
+
+                    if (params.adx_min_threshold) document.getElementById('paramAdx').textContent = params.adx_min_threshold;
+                    if (params.breakeven_r_ratio) document.getElementById('paramBe').textContent = `${params.breakeven_r_ratio}R`;
+                    if (params.risk_reward_ratio) document.getElementById('paramTgt').textContent = `1:${params.risk_reward_ratio}`;
+                    if (params.max_daily_trades) document.getElementById('paramMaxTrades').textContent = params.max_daily_trades;
+
+                    if (aw.learning_logs && aw.learning_logs.length > 0) {
+                        const lastLog = aw.learning_logs[aw.learning_logs.length - 1];
+                        document.getElementById('aiInsightText').textContent = lastLog.action || lastLog.notes || 'Engine actively optimizing.';
+                    }
+                }
 
                 // 2. Update Equity Curve Chart
                 if (data.equity_curve && data.equity_curve.length > 0) {

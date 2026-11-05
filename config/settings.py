@@ -6,6 +6,22 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+# --- ADAPTIVE SELF-LEARNING WEIGHTS ---
+import json
+ADAPTIVE_WEIGHTS_FILE = BASE_DIR / "config" / "adaptive_weights.json"
+
+def load_adaptive_params():
+    if ADAPTIVE_WEIGHTS_FILE.exists():
+        try:
+            with open(ADAPTIVE_WEIGHTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("parameters", {})
+        except Exception:
+            pass
+    return {}
+
+_adaptive = load_adaptive_params()
+
 # --- TRADING MODE ---
 # Mode: "PAPER" (virtual money simulation) or "LIVE" (Kotak Neo real orders)
 TRADING_MODE = os.getenv("TRADING_MODE", "PAPER").upper()
@@ -15,27 +31,28 @@ INITIAL_CAPITAL = float(os.getenv("INITIAL_CAPITAL", 100000.0))  # ₹1,00,000 S
 RISK_PER_TRADE_PERCENT = float(os.getenv("RISK_PER_TRADE_PERCENT", 1.0))  # 1% risk per trade of total capital
 MAX_DAILY_LOSS_PERCENT = float(os.getenv("MAX_DAILY_LOSS_PERCENT", 2.0))  # 2% Circuit Breaker (stops trading if hit)
 MAX_OPEN_POSITIONS = int(os.getenv("MAX_OPEN_POSITIONS", 3))  # Max concurrent trades
-RISK_REWARD_RATIO = float(os.getenv("RISK_REWARD_RATIO", 1.8))  # 1:1.8 Target for high win-rate
-BREAKEVEN_R_RATIO = 0.6     # Move SL to Breakeven once trade gains 0.6R (locks in zero loss!)
+MAX_DAILY_TRADES = int(_adaptive.get("max_daily_trades", 3))  # Self-learned daily trade limit (prevents overtrading)
+RISK_REWARD_RATIO = float(_adaptive.get("risk_reward_ratio", os.getenv("RISK_REWARD_RATIO", 1.8)))  # Adaptive Target
+BREAKEVEN_R_RATIO = float(_adaptive.get("breakeven_r_ratio", 0.6))  # Adaptive Breakeven Trigger
 
 # --- STRATEGY PARAMETERS (Advanced Confluence with Trend Strength & Momentum) ---
 TIMEFRAME = "5m"  # 5-minute candles for intraday
-SUPERTREND_PERIOD = 10
-SUPERTREND_MULTIPLIER = 3.0
-EMA_FAST = 20
-EMA_SLOW = 50
+SUPERTREND_PERIOD = int(_adaptive.get("supertrend_period", 10))
+SUPERTREND_MULTIPLIER = float(_adaptive.get("supertrend_multiplier", 3.0))
+EMA_FAST = int(_adaptive.get("ema_fast", 20))
+EMA_SLOW = int(_adaptive.get("ema_slow", 50))
 RSI_PERIOD = 14
-RSI_BUY_MIN = 50.0
-RSI_BUY_MAX = 70.0
-RSI_SELL_MIN = 30.0
-RSI_SELL_MAX = 50.0
+RSI_BUY_MIN = float(_adaptive.get("rsi_buy_min", 50.0))
+RSI_BUY_MAX = float(_adaptive.get("rsi_buy_max", 70.0))
+RSI_SELL_MIN = float(_adaptive.get("rsi_sell_min", 30.0))
+RSI_SELL_MAX = float(_adaptive.get("rsi_sell_max", 50.0))
 ADX_PERIOD = 14
-ADX_MIN_THRESHOLD = 20.0    # Sideways market filter (ADX > 20 guarantees trend)
+ADX_MIN_THRESHOLD = float(_adaptive.get("adx_min_threshold", 20.0))  # Self-learned sideways filter
 MACD_FAST = 12
 MACD_SLOW = 26
 MACD_SIGNAL = 9
 ATR_PERIOD = 14
-ATR_SL_MULTIPLIER = 1.4     # Tight, optimal volatility Stop Loss
+ATR_SL_MULTIPLIER = float(_adaptive.get("atr_sl_multiplier", 1.4))  # Tight, optimal volatility Stop Loss
 
 # --- TIMEZONE & INTRADAY TIMINGS (IST) ---
 from datetime import timezone, timedelta, datetime

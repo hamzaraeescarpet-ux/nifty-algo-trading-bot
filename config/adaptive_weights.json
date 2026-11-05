@@ -1,0 +1,30 @@
+{
+    "version": "1.0",
+    "last_updated": "05-Nov-2026 21:58:53",
+    "market_regime": "BALANCED_TREND",
+    "confidence_score": 75.0,
+    "parameters": {
+        "supertrend_period": 10,
+        "supertrend_multiplier": 3.0,
+        "ema_fast": 20,
+        "ema_slow": 50,
+        "rsi_buy_min": 50.0,
+        "rsi_buy_max": 70.0,
+        "rsi_sell_min": 30.0,
+        "rsi_sell_max": 50.0,
+        "adx_min_threshold": 20.0,
+        "breakeven_r_ratio": 0.6,
+        "risk_reward_ratio": 1.8,
+        "atr_sl_multiplier": 1.4,
+        "max_daily_trades": 3
+    },
+    "performance_history": [],
+    "learning_logs": [
+        {
+            "date": "05-Nov-2026",
+            "regime": "INITIAL_CALIBRATION",
+            "action": "Baseline weights calibrated with Confluence Filter & Trailing Risk.",
+            "notes": "Engine initialized with institutional defaults."
+        }
+    ]
+}

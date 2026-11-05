@@ -12,6 +12,7 @@ class RiskManager:
         self.config = config
         self.capital = initial_capital
         self.daily_pnl = 0.0
+        self.daily_trades_count = 0
         self.max_daily_loss = initial_capital * (self.config.MAX_DAILY_LOSS_PERCENT / 100.0)
         self.risk_per_trade_amount = initial_capital * (self.config.RISK_PER_TRADE_PERCENT / 100.0)
         self.is_circuit_breaker_tripped = False
@@ -19,7 +20,12 @@ class RiskManager:
     def reset_daily_metrics(self):
         """Resets PnL counters at the start of a new trading day."""
         self.daily_pnl = 0.0
+        self.daily_trades_count = 0
         self.is_circuit_breaker_tripped = False
+
+    def increment_trade_count(self):
+        """Increments daily executed trades counter."""
+        self.daily_trades_count += 1
 
     def update_daily_pnl(self, realized_pnl: float):
         """Updates daily PnL and triggers circuit breaker if loss limit is breached."""
@@ -36,6 +42,10 @@ class RiskManager:
         """Validates whether a new trade can be opened according to risk rules."""
         if self.is_circuit_breaker_tripped:
             return False, f"Daily Max Loss Limit reached (Rs. {abs(self.daily_pnl):.2f} / Rs. {self.max_daily_loss:.2f}). Trading paused for today."
+
+        max_daily_trades = getattr(self.config, 'MAX_DAILY_TRADES', 3)
+        if self.daily_trades_count >= max_daily_trades:
+            return False, f"Maximum daily trade limit ({max_daily_trades}) reached. Preserving daily capital."
             
         if open_positions_count >= self.config.MAX_OPEN_POSITIONS:
             return False, f"Maximum allowed open positions ({self.config.MAX_OPEN_POSITIONS}) already reached."

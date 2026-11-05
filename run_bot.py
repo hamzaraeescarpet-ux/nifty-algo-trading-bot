@@ -45,6 +45,7 @@ from data.google_sheets_sync import GoogleSheetsSync
 from strategies.nifty_options_strategy import NiftyOptionsStrategy
 from risk.risk_manager import RiskManager
 from execution.paper_engine import PaperExecutionEngine
+from learning.self_learning_engine import SelfLearningEngine
 from dashboard.app import app
 from config import settings
 
@@ -66,7 +67,7 @@ def is_market_open(now_ist: datetime = None) -> bool:
     time_str = now_ist.strftime("%H:%M")
     return settings.MARKET_OPEN_TIME <= time_str < settings.SQUARE_OFF_TIME
 
-def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker):
+def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learning_engine=None):
     """
     Simulates recent market session candle-by-candle.
     Allows testing when market is closed at night or on weekends!
@@ -176,6 +177,14 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker):
             paper_broker.initial_capital
         )
 
+    # Run AI Self-Learning Cycle on simulation results
+    if self_learning_engine:
+        self_learning_engine.run_eod_cycle(
+            paper_broker.trade_history,
+            data_fetcher=fetcher,
+            sheets_sync=paper_broker.sheets_sync
+        )
+
 def main():
     parser = argparse.ArgumentParser(description="Nifty 50 Options Algo Trading Bot")
     parser.add_argument("--simulate", action="store_true", help="Run off-market candle replay simulation")
@@ -209,10 +218,11 @@ def main():
         initial_capital=settings.INITIAL_CAPITAL,
         sheets_sync=sheets_sync
     )
+    self_learning_engine = SelfLearningEngine()
 
     # If simulation requested, run it right away
     if args.simulate:
-        run_simulation(fetcher, opt_strategy, risk_manager, paper_broker)
+        run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learning_engine)
         if os.getenv("GITHUB_ACTIONS") or os.getenv("CI"):
             print("[Simulation] Completed on GitHub Actions CI. Exiting cleanly.")
             return
@@ -300,6 +310,13 @@ def main():
                         paper_broker.initial_capital
                     )
 
+                # AI Self-Learning & Auto-Optimization Cycle
+                self_learning_engine.run_eod_cycle(
+                    paper_broker.trade_history,
+                    data_fetcher=fetcher,
+                    sheets_sync=paper_broker.sheets_sync
+                )
+
                 paper_broker.print_performance_table()
                 print(f"[{now_str} IST] All trades recorded. Google Sheets synced. Trading day finished successfully!")
                 break
@@ -373,6 +390,7 @@ def main():
                                     reason=signal_data["reason"],
                                     atr=signal_data["index_atr"]
                                 )
+                                risk_manager.increment_trade_count()
                                 pos["option_type"] = signal_data["option_type"]
                                 pos["entry_spot"] = signal_data["underlying_price"]
                                 print(f"\n[{now_str} IST] [SIGNAL] BUY {total_shares}x {contract} @ Rs. {opt_entry}")
