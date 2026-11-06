@@ -1,8 +1,7 @@
 {
     "version": "1.0",
-    "last_updated": "05-Nov-2026 21:58:53",
-    "market_regime": "BALANCED_TREND",
-    "confidence_score": 75.0,
+    "last_updated": "06-Nov-2026 15:10:39 IST",
+    "market_regime": "TRENDING_BULLISH",
     "parameters": {
         "supertrend_period": 10,
         "supertrend_multiplier": 3.0,
@@ -14,17 +13,51 @@
         "rsi_sell_max": 50.0,
         "adx_min_threshold": 20.0,
         "breakeven_r_ratio": 0.6,
-        "risk_reward_ratio": 1.8,
+        "risk_reward_ratio": 2.0,
         "atr_sl_multiplier": 1.4,
-        "max_daily_trades": 3
+        "max_daily_trades": 2
     },
-    "performance_history": [],
+    "latest_trade_analysis": {
+        "total_trades": 16,
+        "wins": 2,
+        "losses": 14,
+        "breakeven_saves": 6,
+        "win_rate": 12.5,
+        "false_breakouts": 0,
+        "false_breakout_rate": 0.0,
+        "premature_reversals": 0,
+        "premature_reversal_rate": 0.0
+    },
     "learning_logs": [
         {
             "date": "05-Nov-2026",
             "regime": "INITIAL_CALIBRATION",
             "action": "Baseline weights calibrated with Confluence Filter & Trailing Risk.",
             "notes": "Engine initialized with institutional defaults."
+        },
+        {
+            "date": "06-Nov-2026",
+            "time": "15:10:39",
+            "regime": "TRENDING_BULLISH",
+            "total_trades": 16,
+            "win_rate": 12.5,
+            "pattern_identified": "Stable performance; baseline confluence intact.",
+            "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 50.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 50.0,
+                "adx_min_threshold": 20.0,
+                "breakeven_r_ratio": 0.6,
+                "risk_reward_ratio": 2.0,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2
+            }
         }
     ]
 }
