@@ -1,7 +1,7 @@
 {
     "initial_capital": 100000.0,
     "balance": 97865.0,
-    "total_trades": 16,
+    "total_trades": 17,
     "history": [
         {
             "trade_id": "TRADE_1_220854",
@@ -367,6 +367,29 @@
             "entry_spot": 22333.4,
             "exit_time": "12-Oct-2026 22:12:56",
             "exit_price": 156.3,
+            "exit_reason": "TRAILING SL HIT",
+            "pnl": 0.0,
+            "pnl_percent": 0.0
+        },
+        {
+            "trade_id": "TRADE_17_142610",
+            "symbol": "NIFTY 25200 PE",
+            "signal": "BUY",
+            "entry_time": "11-Nov-2026 14:26:10",
+            "entry_price": 176.4,
+            "quantity": 50,
+            "stop_loss": 176.4,
+            "initial_sl": 156.8,
+            "target": 215.6,
+            "atr": 28.02,
+            "reason": "Nifty Index SELL -> NIFTY 25200 PE Triggered (Bearish Confluence: ST Red + VWAP + EMA 20<50 + ADX 33.8 + MACD Bearish)",
+            "status": "CLOSED",
+            "highest_price": 198.00019531249964,
+            "lowest_price": 157.15039062500037,
+            "option_type": "PE",
+            "entry_spot": 25200.95,
+            "exit_time": "11-Nov-2026 14:57:17",
+            "exit_price": 176.4,
             "exit_reason": "TRAILING SL HIT",
             "pnl": 0.0,
             "pnl_percent": 0.0

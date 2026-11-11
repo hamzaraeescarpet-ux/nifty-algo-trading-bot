@@ -1,7 +1,7 @@
 {
     "version": "1.0",
-    "last_updated": "10-Nov-2026 15:10:59 IST",
-    "market_regime": "TRENDING_BULLISH",
+    "last_updated": "11-Nov-2026 15:10:19 IST",
+    "market_regime": "TRENDING_BEARISH",
     "parameters": {
         "supertrend_period": 10,
         "supertrend_multiplier": 3.0,
@@ -18,11 +18,11 @@
         "max_daily_trades": 2
     },
     "latest_trade_analysis": {
-        "total_trades": 16,
+        "total_trades": 17,
         "wins": 2,
-        "losses": 14,
-        "breakeven_saves": 6,
-        "win_rate": 12.5,
+        "losses": 15,
+        "breakeven_saves": 7,
+        "win_rate": 11.76,
         "false_breakouts": 0,
         "false_breakout_rate": 0.0,
         "premature_reversals": 0,
@@ -89,6 +89,30 @@
             "regime": "TRENDING_BULLISH",
             "total_trades": 16,
             "win_rate": 12.5,
+            "pattern_identified": "Stable performance; baseline confluence intact.",
+            "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 50.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 50.0,
+                "adx_min_threshold": 20.0,
+                "breakeven_r_ratio": 0.6,
+                "risk_reward_ratio": 2.0,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2
+            }
+        },
+        {
+            "date": "11-Nov-2026",
+            "time": "15:10:19",
+            "regime": "TRENDING_BEARISH",
+            "total_trades": 17,
+            "win_rate": 11.76,
             "pattern_identified": "Stable performance; baseline confluence intact.",
             "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
             "parameters": {
