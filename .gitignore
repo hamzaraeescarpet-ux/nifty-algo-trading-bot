@@ -7,3 +7,7 @@ env/
 .idea/
 .vscode/
 logs/*.log
+service_account.json
+*gserviceaccount*.json
+zinc-*.json
+*.key
