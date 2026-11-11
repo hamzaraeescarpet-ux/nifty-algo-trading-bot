@@ -106,12 +106,30 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learn
             entry_spot = pos.get("entry_spot", spot_close)
             
             # Approximate current option high/low based on spot movement & delta
-            spot_diff = spot_close - entry_spot
-            delta_change = spot_diff * settings.OPTION_DELTA if opt_type == "CE" else -spot_diff * settings.OPTION_DELTA
-            curr_opt_price = max(1.0, pos["entry_price"] + delta_change)
-            curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
-            curr_opt_low = min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA)
+            if opt_type == "CE":
+                spot_diff = spot_close - entry_spot
+                curr_opt_price = max(1.0, pos["entry_price"] + spot_diff * settings.OPTION_DELTA)
+                curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
+                curr_opt_low = max(1.0, min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA))
+            else:  # PE
+                spot_diff = entry_spot - spot_close
+                curr_opt_price = max(1.0, pos["entry_price"] + spot_diff * settings.OPTION_DELTA)
+                curr_opt_high = max(curr_opt_price, pos["entry_price"] + (entry_spot - spot_low) * settings.OPTION_DELTA)
+                curr_opt_low = max(1.0, min(curr_opt_price, pos["entry_price"] + (entry_spot - spot_high) * settings.OPTION_DELTA))
 
+            # 1. Active Trailing Stop & Profit Locking evaluated FIRST (tracks candle high)
+            updated, new_sl = risk_manager.check_trailing_stop(
+                position=pos,
+                current_price=curr_opt_price,
+                high_price=curr_opt_high,
+                low_price=curr_opt_low
+            )
+            if updated:
+                old_sl = pos['stop_loss']
+                paper_broker.update_trailing_sl(symbol, new_sl)
+                print(f"  [TRAILING SL] {symbol}: SL moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
+
+            # 2. Evaluate Exits against Target and (newly updated) Trailing SL
             closed = paper_broker.update_and_check_exits(
                 symbol=symbol,
                 high_price=curr_opt_high,
@@ -123,14 +141,6 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learn
                 tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
                 print(f"  {tag} {symbol} Exit @ Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                 risk_manager.update_daily_pnl(closed['pnl'])
-            else:
-                # Active Trailing Stop & Breakeven Check
-                pos = paper_broker.open_positions[symbol]
-                updated, new_sl = risk_manager.check_trailing_stop(pos, curr_opt_price)
-                if updated:
-                    old_sl = pos['stop_loss']
-                    paper_broker.update_trailing_sl(symbol, new_sl)
-                    print(f"  [TRAILING SL] {symbol}: SL moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
 
         # 2. Check for fresh option entry signal
         can_trade, _ = risk_manager.can_open_trade(len(paper_broker.open_positions))
@@ -337,12 +347,30 @@ def main():
                         opt_type = pos.get("option_type", "CE")
                         entry_spot = pos.get("entry_spot", spot_close)
 
-                        spot_diff = spot_close - entry_spot
-                        delta_change = spot_diff * settings.OPTION_DELTA if opt_type == "CE" else -spot_diff * settings.OPTION_DELTA
-                        curr_opt_price = max(1.0, pos["entry_price"] + delta_change)
-                        curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
-                        curr_opt_low = min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA)
+                        if opt_type == "CE":
+                            spot_diff = spot_close - entry_spot
+                            curr_opt_price = max(1.0, pos["entry_price"] + spot_diff * settings.OPTION_DELTA)
+                            curr_opt_high = max(curr_opt_price, pos["entry_price"] + (spot_high - entry_spot) * settings.OPTION_DELTA)
+                            curr_opt_low = max(1.0, min(curr_opt_price, pos["entry_price"] + (spot_low - entry_spot) * settings.OPTION_DELTA))
+                        else:  # PE
+                            spot_diff = entry_spot - spot_close
+                            curr_opt_price = max(1.0, pos["entry_price"] + spot_diff * settings.OPTION_DELTA)
+                            curr_opt_high = max(curr_opt_price, pos["entry_price"] + (entry_spot - spot_low) * settings.OPTION_DELTA)
+                            curr_opt_low = max(1.0, min(curr_opt_price, pos["entry_price"] + (entry_spot - spot_high) * settings.OPTION_DELTA))
 
+                        # 1. Active Trailing Stop & Profit Locking evaluated FIRST (tracks candle high)
+                        updated, new_sl = risk_manager.check_trailing_stop(
+                            position=pos,
+                            current_price=curr_opt_price,
+                            high_price=curr_opt_high,
+                            low_price=curr_opt_low
+                        )
+                        if updated:
+                            old_sl = pos['stop_loss']
+                            paper_broker.update_trailing_sl(symbol, new_sl)
+                            print(f"[TRAILING SL] {symbol}: Stop-Loss moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
+
+                        # 2. Evaluate Exits against Target and (newly updated) Trailing SL
                         closed = paper_broker.update_and_check_exits(
                             symbol=symbol,
                             high_price=curr_opt_high,
@@ -355,14 +383,6 @@ def main():
                             tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
                             print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                             risk_manager.update_daily_pnl(closed['pnl'])
-                        else:
-                            # Active Trailing Stop & Breakeven Check
-                            pos = paper_broker.open_positions[symbol]
-                            updated, new_sl = risk_manager.check_trailing_stop(pos, curr_opt_price)
-                            if updated:
-                                old_sl = pos['stop_loss']
-                                paper_broker.update_trailing_sl(symbol, new_sl)
-                                print(f"[TRAILING SL] {symbol}: Stop-Loss moved from Rs. {old_sl} to Rs. {new_sl} (Profit Locked!)")
 
                     # B. Check for new signals if allowed
                     can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions))

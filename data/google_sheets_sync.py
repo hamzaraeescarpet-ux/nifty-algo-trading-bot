@@ -64,15 +64,39 @@ class GoogleSheetsSync:
     def _initialize(self):
         """Authenticates and sets up required worksheets with clean headers."""
         try:
-            token_env = os.getenv("GOOGLE_TOKEN_JSON")
+            from google.oauth2 import service_account
+            token_env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_TOKEN_JSON")
+            sa_file = Path("service_account.json")
+            
+            creds = None
             if token_env:
                 import json
-                token_data = json.loads(token_env)
-                creds = Credentials.from_authorized_user_info(token_data)
+                data = json.loads(token_env)
+                if data.get("type") == "service_account":
+                    creds = service_account.Credentials.from_service_account_info(
+                        data,
+                        scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                    )
+                else:
+                    creds = Credentials.from_authorized_user_info(data)
+            elif sa_file.exists():
+                creds = service_account.Credentials.from_service_account_file(
+                    str(sa_file),
+                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                )
             elif self.token_path.exists():
-                creds = Credentials.from_authorized_user_file(str(self.token_path))
+                import json
+                with open(self.token_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("type") == "service_account":
+                    creds = service_account.Credentials.from_service_account_info(
+                        data,
+                        scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                    )
+                else:
+                    creds = Credentials.from_authorized_user_info(data)
             else:
-                print(f"[GoogleSheets] Warning: Neither GOOGLE_TOKEN_JSON env nor token file found at {self.token_path}")
+                print(f"[GoogleSheets] Warning: No valid Google credentials found.")
                 return
 
             self.client = gspread.authorize(creds)
@@ -183,6 +207,48 @@ class GoogleSheetsSync:
             print(f"[GoogleSheets] Logged AI Self-Learning insights to 'AI Brain & Learnings' tab!")
         except Exception as e:
             print(f"[GoogleSheets] Failed to log AI learning: {e}")
+
+    def sync_all_ai_learnings(self, adaptive_file: Optional[Path] = None):
+        """Syncs all historic learning entries from adaptive_weights.json to 'AI Brain & Learnings'."""
+        if not self.ai_brain_sheet:
+            return
+        try:
+            import json
+            af = Path(adaptive_file) if adaptive_file else Path("config/adaptive_weights.json")
+            if not af.exists():
+                return
+            with open(af, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            logs = data.get("learning_logs", [])
+            if not logs:
+                return
+
+            # Clear existing data except header
+            self.ai_brain_sheet.clear()
+            self._ensure_ai_brain_header()
+
+            rows = []
+            for log_entry in logs:
+                params = log_entry.get("parameters", {})
+                param_str = f"ADX>={params.get('adx_min_threshold')}, BE={params.get('breakeven_r_ratio')}R, Tgt={params.get('risk_reward_ratio')}R, MaxTrades={params.get('max_daily_trades')}"
+                row = [
+                    log_entry.get("date", ""),
+                    log_entry.get("time", "15:10:00"),
+                    log_entry.get("regime", ""),
+                    int(log_entry.get("total_trades", 0)),
+                    f"{float(log_entry.get('win_rate', 0.0)):.2f}%",
+                    log_entry.get("pattern_identified", log_entry.get("notes", "")),
+                    log_entry.get("action_taken", log_entry.get("action", "")),
+                    param_str
+                ]
+                rows.append(row)
+            
+            if rows:
+                self.ai_brain_sheet.append_rows(rows)
+                print(f"[GoogleSheets] Successfully synced {len(rows)} AI learning logs to 'AI Brain & Learnings' tab!")
+        except Exception as e:
+            print(f"[GoogleSheets] Failed to sync AI learnings history: {e}")
 
     def log_trade(self, trade: Dict[str, Any]):
         """Appends a closed trade to the Trade Logs worksheet."""

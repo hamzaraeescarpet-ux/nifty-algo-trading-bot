@@ -68,12 +68,21 @@ class RiskManager:
         final_qty = max(1, min(qty, max_possible_qty))
         return final_qty
 
-    def check_trailing_stop(self, position: Dict[str, Any], current_price: float) -> Tuple[bool, float]:
+    def check_trailing_stop(
+        self,
+        position: Dict[str, Any],
+        current_price: float,
+        high_price: float = None,
+        low_price: float = None
+    ) -> Tuple[bool, float]:
         """
-        Dynamic Breakeven & Multi-Stage Trailing Stop for High Win-Rate:
-        - 0.5R to 0.6R profit: Immediately moves SL to Breakeven (Cost-to-Cost).
-        - 1.0R profit: Trails SL to +0.5R guaranteed profit.
-        - 1.4R profit: Trails SL to +1.0R guaranteed profit.
+        Dynamic Profit-Locking & High-Watermark Trailing Stop:
+        - Tracks peak favorable excursion (candle high for BUY / candle low for SELL).
+        - Stage 1 (Fast Capital Shield): Gain >= +0.35R -> Trail SL to Breakeven (0 risk).
+        - Stage 2 (Lock Profit 1): Gain >= +0.6R (~12 pts) -> Lock in +0.3R guaranteed profit.
+        - Stage 3 (Lock Profit 2): Gain >= +1.0R (~20 pts) -> Lock in +0.65R guaranteed profit (e.g. 198 rally locks ~189).
+        - Stage 4 (Trend Runner): Gain >= +1.5R -> Lock in +1.1R guaranteed profit.
+        - Stage 5 (Dynamic Watermark): Gain >= +1.8R -> Trail SL at Peak - (0.35 * initial_risk).
         """
         direction = position.get('signal', 'BUY')
         entry_price = float(position['entry_price'])
@@ -83,42 +92,61 @@ class RiskManager:
         
         if initial_risk <= 0:
             return False, curr_sl
-            
-        be_threshold = getattr(self.config, 'BREAKEVEN_R_RATIO', 0.6) * initial_risk
 
         if direction == "BUY":
-            gain = current_price - entry_price
-            
-            # Stage 3: If gain >= 1.4R, trail to +1.0R
-            if gain >= 1.4 * initial_risk:
-                new_sl = round(entry_price + (1.0 * initial_risk), 1)
-                if new_sl > curr_sl:
-                    return True, new_sl
+            peak_price = max(
+                current_price,
+                high_price if high_price is not None else current_price,
+                float(position.get("highest_price", current_price))
+            )
+            gain = peak_price - entry_price
+            new_sl = curr_sl
 
-            # Stage 2: If gain >= 1.0R, trail to +0.5R
-            if gain >= 1.0 * initial_risk:
-                new_sl = round(entry_price + (0.5 * initial_risk), 1)
-                if new_sl > curr_sl:
-                    return True, new_sl
+            if gain >= 1.8 * initial_risk:
+                candidate = round(peak_price - (0.35 * initial_risk), 1)
+                new_sl = max(new_sl, candidate)
+            elif gain >= 1.5 * initial_risk:
+                candidate = round(entry_price + (1.1 * initial_risk), 1)
+                new_sl = max(new_sl, candidate)
+            elif gain >= 1.0 * initial_risk:
+                candidate = round(entry_price + (0.65 * initial_risk), 1)
+                new_sl = max(new_sl, candidate)
+            elif gain >= 0.6 * initial_risk:
+                candidate = round(entry_price + (0.3 * initial_risk), 1)
+                new_sl = max(new_sl, candidate)
+            elif gain >= 0.35 * initial_risk:
+                candidate = round(entry_price, 1)
+                new_sl = max(new_sl, candidate)
 
-            # Stage 1: Breakeven (0.6R profit reached) -> Lock entry
-            if gain >= be_threshold and curr_sl < entry_price:
-                return True, round(entry_price, 1)
+            if new_sl > curr_sl:
+                return True, new_sl
 
         elif direction == "SELL":
-            gain = entry_price - current_price
-            
-            if gain >= 1.4 * initial_risk:
-                new_sl = round(entry_price - (1.0 * initial_risk), 1)
-                if new_sl < curr_sl:
-                    return True, new_sl
+            lowest_seen = min(
+                current_price,
+                low_price if low_price is not None else current_price,
+                float(position.get("lowest_price", current_price))
+            )
+            gain = entry_price - lowest_seen
+            new_sl = curr_sl
 
-            if gain >= 1.0 * initial_risk:
-                new_sl = round(entry_price - (0.5 * initial_risk), 1)
-                if new_sl < curr_sl:
-                    return True, new_sl
+            if gain >= 1.8 * initial_risk:
+                candidate = round(lowest_seen + (0.35 * initial_risk), 1)
+                new_sl = min(new_sl, candidate)
+            elif gain >= 1.5 * initial_risk:
+                candidate = round(entry_price - (1.1 * initial_risk), 1)
+                new_sl = min(new_sl, candidate)
+            elif gain >= 1.0 * initial_risk:
+                candidate = round(entry_price - (0.65 * initial_risk), 1)
+                new_sl = min(new_sl, candidate)
+            elif gain >= 0.6 * initial_risk:
+                candidate = round(entry_price - (0.3 * initial_risk), 1)
+                new_sl = min(new_sl, candidate)
+            elif gain >= 0.35 * initial_risk:
+                candidate = round(entry_price, 1)
+                new_sl = min(new_sl, candidate)
 
-            if gain >= be_threshold and curr_sl > entry_price:
-                return True, round(entry_price, 1)
+            if new_sl < curr_sl:
+                return True, new_sl
 
         return False, curr_sl
