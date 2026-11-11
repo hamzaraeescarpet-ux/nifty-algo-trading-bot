@@ -174,35 +174,103 @@ class GoogleSheetsSync:
             self.monthly_sheet.insert_row(headers, index=1)
 
     def _ensure_ai_brain_header(self):
-        """Ensures clean header row in AI Brain & Learnings."""
+        """Ensures clean, human-friendly header row in AI Brain & Learnings."""
         if not self.ai_brain_sheet:
             return
         headers = [
-            "Date", "Time (IST)", "Market Regime", "Total Evaluated Trades",
-            "Win Rate (%)", "Key Mistake / Pattern Identified",
-            "Self-Optimization Action Taken", "Adaptive Settings (ADX, BE_R, Target_R, Max_Trades)"
+            "Date & Time",
+            "Market Ka Haal (Condition)",
+            "Trades Performance",
+            "Market Me Kya Dekha / Seekha (Pattern & Analysis)",
+            "Bot Ne Apne Rules Kaise Sudhare (Self-Optimization)",
+            "Naye Trading Rules (Simple Settings)"
         ]
         curr_headers = self.ai_brain_sheet.row_values(1)
         if not curr_headers or curr_headers != headers:
             self.ai_brain_sheet.insert_row(headers, index=1)
 
+    def _format_human_learning_row(self, log_entry: Dict[str, Any]) -> List[str]:
+        """Converts technical AI decision metrics into simple, clear human-readable language."""
+        regime = str(log_entry.get("regime", "")).upper()
+        
+        # 1. Market condition in easy terms
+        if "BEARISH" in regime:
+            regime_human = "📉 Badi Girawat (Down Trend)"
+        elif "BULLISH" in regime:
+            regime_human = "📈 Badi Tezi (Up Trend)"
+        elif "CHOPPY" in regime or "SIDEWAYS" in regime:
+            regime_human = "↔️ Sideways (Rangebound - No Big Move)"
+        elif "VOLATILITY" in regime:
+            regime_human = "⚡ High Volatility (Jhatke Wala Market)"
+        else:
+            regime_human = "⚙️ Pehla Setup (Initial Calibration)"
+
+        # 2. Pattern Identified (Human Hinglish)
+        pattern = log_entry.get("pattern_identified", log_entry.get("notes", ""))
+        
+        if "INITIAL" in regime or "Baseline" in str(pattern):
+            pattern_human = "Bot ne institutional rules setup kiye (SuperTrend + VWAP + EMA + RSI Confluence)."
+        elif "BEARISH" in regime:
+            pattern_human = "Market me achhi girawat dekhi gayi (Nifty continuous selloff me tha). Bot ne high-confidence PE trade me rally capture ki."
+        elif "BULLISH" in regime:
+            pattern_human = "Market me tezi bani rahi. Bot ne high-confidence signals scan kiye aur false breakout se bachne ke liye patience rakha."
+        elif "false breakout" in str(pattern).lower():
+            pattern_human = "Market me traps/whipsaws the, isliye confirmation filter ko aur strict kiya gaya."
+        else:
+            pattern_human = "Market stable aur safe tha. Bot ne koi faltu trade nahi liya aur capital ko protect kiya."
+
+        # 3. Action taken (Human Hinglish)
+        action = str(log_entry.get("action_taken", log_entry.get("action", "")))
+        actions_human = []
+        if "Expanded Target" in action or "1:2" in action:
+            actions_human.append("Target badhakar 1:2 kiya (Trend me bada profit capture karne ke liye)")
+        if "Capped Max Daily Trades" in action or "2" in action:
+            actions_human.append("Din me Maximum 2 trades limit set ki (Overtrading aur faltu loss rokne ke liye)")
+        if "Raised ADX" in action:
+            actions_human.append("Trend confirmation filter badhaya (Taaki trap na ho)")
+        if "Breakeven trigger" in action:
+            actions_human.append("Stop-loss ko jaldi safe karne ka niyam lagaya")
+        
+        if not actions_human:
+            action_human = "Pichle rules safe aur well-calibrated hain, aaj koi badlaav ki zaroorat nahi padi."
+        else:
+            action_human = " | ".join(actions_human)
+
+        # 4. Settings summary
+        params = log_entry.get("parameters", {})
+        adx_v = params.get("adx_min_threshold", 20.0)
+        tgt_v = params.get("risk_reward_ratio", 2.0)
+        max_t = params.get("max_daily_trades", 2)
+        
+        if adx_v and tgt_v and max_t:
+            settings_human = f"Trend Power: {adx_v}+ | Target: {tgt_v}x Profit | Max Trades: {max_t}/Day"
+        else:
+            settings_human = "Default Rules (Trend Filter: 20+, 1:2 R:R, Max 2 Trades)"
+
+        # Performance
+        total_t = int(log_entry.get("total_trades", 0))
+        win_r = float(log_entry.get("win_rate", 0.0))
+        perf_human = f"{total_t} Total Trades | Win Rate: {win_r:.1f}%"
+
+        date_val = log_entry.get("date", "")
+        time_val = log_entry.get("time", "15:10:00")
+        dt_display = f"{date_val} {time_val}"
+
+        return [
+            dt_display,
+            regime_human,
+            perf_human,
+            pattern_human,
+            action_human,
+            settings_human
+        ]
+
     def log_ai_learning(self, log_entry: Dict[str, Any]):
-        """Logs daily self-learning insights to Google Sheets."""
+        """Logs daily self-learning insights to Google Sheets in human-readable language."""
         if not self.ai_brain_sheet:
             return
         try:
-            params = log_entry.get("parameters", {})
-            param_str = f"ADX>={params.get('adx_min_threshold')}, BE={params.get('breakeven_r_ratio')}R, Tgt={params.get('risk_reward_ratio')}R, MaxTrades={params.get('max_daily_trades')}"
-            row = [
-                log_entry.get("date", ""),
-                log_entry.get("time", ""),
-                log_entry.get("regime", ""),
-                int(log_entry.get("total_trades", 0)),
-                f"{log_entry.get('win_rate', 0.0):.2f}%",
-                log_entry.get("pattern_identified", ""),
-                log_entry.get("action_taken", ""),
-                param_str
-            ]
+            row = self._format_human_learning_row(log_entry)
             self.ai_brain_sheet.append_row(row)
             print(f"[GoogleSheets] Logged AI Self-Learning insights to 'AI Brain & Learnings' tab!")
         except Exception as e:
@@ -224,26 +292,11 @@ class GoogleSheetsSync:
             if not logs:
                 return
 
-            # Clear existing data except header
+            # Clear existing data and rewrite clean headers
             self.ai_brain_sheet.clear()
             self._ensure_ai_brain_header()
 
-            rows = []
-            for log_entry in logs:
-                params = log_entry.get("parameters", {})
-                param_str = f"ADX>={params.get('adx_min_threshold')}, BE={params.get('breakeven_r_ratio')}R, Tgt={params.get('risk_reward_ratio')}R, MaxTrades={params.get('max_daily_trades')}"
-                row = [
-                    log_entry.get("date", ""),
-                    log_entry.get("time", "15:10:00"),
-                    log_entry.get("regime", ""),
-                    int(log_entry.get("total_trades", 0)),
-                    f"{float(log_entry.get('win_rate', 0.0)):.2f}%",
-                    log_entry.get("pattern_identified", log_entry.get("notes", "")),
-                    log_entry.get("action_taken", log_entry.get("action", "")),
-                    param_str
-                ]
-                rows.append(row)
-            
+            rows = [self._format_human_learning_row(entry) for entry in logs]
             if rows:
                 self.ai_brain_sheet.append_rows(rows)
                 print(f"[GoogleSheets] Successfully synced {len(rows)} AI learning logs to 'AI Brain & Learnings' tab!")
