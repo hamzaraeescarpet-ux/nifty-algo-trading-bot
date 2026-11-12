@@ -141,9 +141,10 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learn
                 tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
                 print(f"  {tag} {symbol} Exit @ Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                 risk_manager.update_daily_pnl(closed['pnl'])
+                risk_manager.register_trade_exit(settings.get_now_ist())
 
         # 2. Check for fresh option entry signal
-        can_trade, _ = risk_manager.can_open_trade(len(paper_broker.open_positions))
+        can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions), current_time=settings.get_now_ist())
         if can_trade:
             signal_data = opt_strategy.generate_option_signal(sub_df)
             if signal_data is not None:
@@ -383,9 +384,10 @@ def main():
                             tag = "[PROFIT]" if closed['pnl'] > 0 else ("[BREAKEVEN]" if closed['pnl'] == 0 else "[LOSS]")
                             print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                             risk_manager.update_daily_pnl(closed['pnl'])
+                            risk_manager.register_trade_exit(settings.get_now_ist())
 
                     # B. Check for new signals if allowed
-                    can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions))
+                    can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions), current_time=settings.get_now_ist())
                     if can_trade:
                         signal_data = opt_strategy.generate_option_signal(df)
                         if signal_data is not None:

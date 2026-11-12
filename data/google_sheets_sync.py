@@ -143,14 +143,16 @@ class GoogleSheetsSync:
             print(f"[GoogleSheets] Initialization error: {e}")
 
     def _ensure_trades_header(self):
-        """Ensures clean header row in Trade Logs."""
+        """Ensures clean header row in Trade Logs with detailed price extremes & entry reason."""
         headers = [
             "Trade ID", "Instrument", "Signal", "Buy Time (Entry)",
-            "Sell Time (Exit)", "Buy Price (Rs)", "Sell Price (Rs)", "Qty",
-            "Net P&L (Rs)", "Return (%)", "Exit Reason", "Status"
+            "Sell Time (Exit)", "Buy Price (Rs)", "Upar Kitna Gaya - High (Rs)",
+            "Neeche Kitna Gaya - Low (Rs)", "Max Gain Potential", "Sell Price (Rs)", "Qty",
+            "Net P&L (Rs)", "Return (%)", "Trade Lene Ka Valid Reason", "Exit Reason", "Status"
         ]
         curr_headers = self.trades_sheet.row_values(1)
         if not curr_headers or curr_headers != headers:
+            self.trades_sheet.clear()
             self.trades_sheet.insert_row(headers, index=1)
 
     def _ensure_daily_header(self):
@@ -206,35 +208,40 @@ class GoogleSheetsSync:
             regime_human = "⚙️ Pehla Setup (Initial Calibration)"
 
         # 2. Pattern Identified (Human Hinglish)
-        pattern = log_entry.get("pattern_identified", log_entry.get("notes", ""))
+        pattern = str(log_entry.get("pattern_identified", log_entry.get("notes", "")))
+        action = str(log_entry.get("action_taken", log_entry.get("action", "")))
         
-        if "INITIAL" in regime or "Baseline" in str(pattern):
+        if any(k in pattern for k in ["Session Post-Mortem", "Zero-Noise", "Breakeven Whipsaw", "Strong Trend", "False Breakout"]):
+            pattern_human = pattern
+        elif "INITIAL" in regime or "Baseline" in pattern:
             pattern_human = "Bot ne institutional rules setup kiye (SuperTrend + VWAP + EMA + RSI Confluence)."
         elif "BEARISH" in regime:
             pattern_human = "Market me achhi girawat dekhi gayi (Nifty continuous selloff me tha). Bot ne high-confidence PE trade me rally capture ki."
         elif "BULLISH" in regime:
             pattern_human = "Market me tezi bani rahi. Bot ne high-confidence signals scan kiye aur false breakout se bachne ke liye patience rakha."
-        elif "false breakout" in str(pattern).lower():
+        elif "false breakout" in pattern.lower():
             pattern_human = "Market me traps/whipsaws the, isliye confirmation filter ko aur strict kiya gaya."
         else:
-            pattern_human = "Market stable aur safe tha. Bot ne koi faltu trade nahi liya aur capital ko protect kiya."
+            pattern_human = pattern if pattern else "Market stable aur safe tha. Bot ne koi faltu trade nahi liya aur capital ko protect kiya."
 
         # 3. Action taken (Human Hinglish)
-        action = str(log_entry.get("action_taken", log_entry.get("action", "")))
-        actions_human = []
-        if "Expanded Target" in action or "1:2" in action:
-            actions_human.append("Target badhakar 1:2 kiya (Trend me bada profit capture karne ke liye)")
-        if "Capped Max Daily Trades" in action or "2" in action:
-            actions_human.append("Din me Maximum 2 trades limit set ki (Overtrading aur faltu loss rokne ke liye)")
-        if "Raised ADX" in action:
-            actions_human.append("Trend confirmation filter badhaya (Taaki trap na ho)")
-        if "Breakeven trigger" in action:
-            actions_human.append("Stop-loss ko jaldi safe karne ka niyam lagaya")
-        
-        if not actions_human:
-            action_human = "Pichle rules safe aur well-calibrated hain, aaj koi badlaav ki zaroorat nahi padi."
+        if any(k in action for k in ["Anti-Whipsaw", "saans lene", "breathing room", "Multi-Stage", "Profit Locking", "Cooldown"]):
+            action_human = action
         else:
-            action_human = " | ".join(actions_human)
+            actions_human = []
+            if "Expanded Target" in action or "1:2" in action:
+                actions_human.append("Target badhakar 1:2 kiya (Trend me bada profit capture karne ke liye)")
+            if "Capped Max Daily Trades" in action or "2" in action:
+                actions_human.append("Din me Maximum 2 trades limit set ki (Overtrading aur faltu loss rokne ke liye)")
+            if "Raised ADX" in action:
+                actions_human.append("Trend confirmation filter badhaya (Taaki trap na ho)")
+            if "Breakeven trigger" in action:
+                actions_human.append("Stop-loss ko jaldi safe karne ka niyam lagaya")
+            
+            if not actions_human:
+                action_human = action if action else "Pichle rules safe aur well-calibrated hain, aaj koi badlaav ki zaroorat nahi padi."
+            else:
+                action_human = " | ".join(actions_human)
 
         # 4. Settings summary
         params = log_entry.get("parameters", {})
@@ -303,31 +310,71 @@ class GoogleSheetsSync:
         except Exception as e:
             print(f"[GoogleSheets] Failed to sync AI learnings history: {e}")
 
+    def _format_trade_row(self, trade: Dict[str, Any]) -> List[Any]:
+        """Builds a comprehensive, transparent trade log row."""
+        buy_time = format_datetime_str(trade.get("entry_time", ""))
+        sell_time = format_datetime_str(trade.get("exit_time", ""))
+        entry_p = round(float(trade.get("entry_price", 0.0)), 2)
+        exit_p = round(float(trade.get("exit_price", 0.0)), 2)
+        high_p = round(float(trade.get("highest_price", entry_p)), 2)
+        low_p = round(float(trade.get("lowest_price", entry_p)), 2)
+        
+        # Calculate max potential move
+        direction = trade.get("signal", "BUY")
+        if direction == "BUY":
+            max_gain_pts = max(0.0, round(high_p - entry_p, 2))
+        else:
+            max_gain_pts = max(0.0, round(entry_p - low_p, 2))
+            
+        gain_pct = round((max_gain_pts / entry_p) * 100, 1) if entry_p > 0 else 0.0
+        max_gain_str = f"+{max_gain_pts:.2f} pts (+{gain_pct:.1f}%)" if max_gain_pts > 0 else "+0.00 pts"
+
+        reason = str(trade.get("reason", "Confluence Signal"))
+        # Shorten and clarify reason for mobile readability
+        if "Bearish Confluence" in reason:
+            reason_clean = "Nifty Downfall Confluence (ST Red + Below VWAP + EMA 20<50 + ADX Confirm)"
+        elif "Bullish Confluence" in reason:
+            reason_clean = "Nifty Rally Confluence (ST Green + Above VWAP + EMA 20>50 + ADX Confirm)"
+        else:
+            reason_clean = reason
+
+        pnl = round(float(trade.get("pnl", 0.0)), 2)
+        pnl_pct_str = f"{trade.get('pnl_percent', 0.0):+,.2f}%"
+
+        exit_r = str(trade.get("exit_reason", ""))
+        if "TRAILING SL" in exit_r and pnl == 0:
+            exit_r = "TRAILING SL HIT (Cost-to-Cost Protected, Rs 0 Loss)"
+        elif "TRAILING SL" in exit_r and pnl > 0:
+            exit_r = f"TRAILING SL HIT (Profit Locked In: Rs {pnl:+,.2f})"
+
+        return [
+            trade.get("trade_id", ""),
+            trade.get("symbol", ""),
+            trade.get("signal", "BUY"),
+            buy_time,
+            sell_time,
+            entry_p,
+            high_p,
+            low_p,
+            max_gain_str,
+            exit_p,
+            int(trade.get("quantity", 0)),
+            pnl,
+            pnl_pct_str,
+            reason_clean,
+            exit_r,
+            trade.get("status", "CLOSED")
+        ]
+
     def log_trade(self, trade: Dict[str, Any]):
         """Appends a closed trade to the Trade Logs worksheet."""
         if not self.trades_sheet:
             return
 
         try:
-            buy_time = format_datetime_str(trade.get("entry_time", ""))
-            sell_time = format_datetime_str(trade.get("exit_time", ""))
-            
-            row = [
-                trade.get("trade_id", ""),
-                trade.get("symbol", ""),
-                trade.get("signal", "BUY"),
-                buy_time,
-                sell_time,
-                round(float(trade.get("entry_price", 0.0)), 2),
-                round(float(trade.get("exit_price", 0.0)), 2),
-                int(trade.get("quantity", 0)),
-                round(float(trade.get("pnl", 0.0)), 2),
-                f"{trade.get('pnl_percent', 0.0):+,.2f}%",
-                trade.get("exit_reason", ""),
-                trade.get("status", "CLOSED")
-            ]
+            row = self._format_trade_row(trade)
             self.trades_sheet.append_row(row)
-            print(f"[GoogleSheets] Synced trade {trade.get('trade_id')} (Buy: {buy_time} | Sell: {sell_time})")
+            print(f"[GoogleSheets] Synced trade {trade.get('trade_id')} (High: {row[6]} | Low: {row[7]} | Max Gain: {row[8]})")
         except Exception as e:
             print(f"[GoogleSheets] Failed to log trade: {e}")
 
@@ -340,27 +387,13 @@ class GoogleSheetsSync:
             self._ensure_trades_header()
             headers = [
                 "Trade ID", "Instrument", "Signal", "Buy Time (Entry)",
-                "Sell Time (Exit)", "Buy Price (Rs)", "Sell Price (Rs)", "Qty",
-                "Net P&L (Rs)", "Return (%)", "Exit Reason", "Status"
+                "Sell Time (Exit)", "Buy Price (Rs)", "Upar Kitna Gaya - High (Rs)",
+                "Neeche Kitna Gaya - Low (Rs)", "Max Gain Potential", "Sell Price (Rs)", "Qty",
+                "Net P&L (Rs)", "Return (%)", "Trade Lene Ka Valid Reason", "Exit Reason", "Status"
             ]
             rows = [headers]
             for trade in history:
-                buy_time = format_datetime_str(trade.get("entry_time", ""))
-                sell_time = format_datetime_str(trade.get("exit_time", ""))
-                rows.append([
-                    trade.get("trade_id", ""),
-                    trade.get("symbol", ""),
-                    trade.get("signal", "BUY"),
-                    buy_time,
-                    sell_time,
-                    round(float(trade.get("entry_price", 0.0)), 2),
-                    round(float(trade.get("exit_price", 0.0)), 2),
-                    int(trade.get("quantity", 0)),
-                    round(float(trade.get("pnl", 0.0)), 2),
-                    f"{trade.get('pnl_percent', 0.0):+,.2f}%",
-                    trade.get("exit_reason", ""),
-                    trade.get("status", "CLOSED")
-                ])
+                rows.append(self._format_trade_row(trade))
 
             self.trades_sheet.clear()
             self.trades_sheet.update(range_name='A1', values=rows)

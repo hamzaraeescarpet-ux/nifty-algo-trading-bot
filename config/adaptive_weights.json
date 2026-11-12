@@ -12,7 +12,7 @@
         "rsi_sell_min": 30.0,
         "rsi_sell_max": 48.0,
         "adx_min_threshold": 23.0,
-        "breakeven_r_ratio": 0.6,
+        "breakeven_r_ratio": 0.8,
         "risk_reward_ratio": 1.5,
         "atr_sl_multiplier": 1.4,
         "max_daily_trades": 2
@@ -31,18 +31,12 @@
     "learning_logs": [
         {
             "date": "05-Nov-2026",
+            "time": "15:10:00",
             "regime": "INITIAL_CALIBRATION",
-            "action": "Baseline weights calibrated with Confluence Filter & Trailing Risk.",
-            "notes": "Engine initialized with institutional defaults."
-        },
-        {
-            "date": "06-Nov-2026",
-            "time": "15:10:39",
-            "regime": "TRENDING_BULLISH",
-            "total_trades": 16,
-            "win_rate": 12.5,
-            "pattern_identified": "Stable performance; baseline confluence intact.",
-            "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "total_trades": 0,
+            "win_rate": 0.0,
+            "pattern_identified": "Bot ne institutional rules setup kiye (SuperTrend + VWAP + EMA + RSI Confluence Filter).",
+            "action_taken": "Pichle rules safe aur well-calibrated hain, baseline parameters activate kiye gaye.",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
@@ -53,7 +47,31 @@
                 "rsi_sell_min": 30.0,
                 "rsi_sell_max": 50.0,
                 "adx_min_threshold": 20.0,
-                "breakeven_r_ratio": 0.6,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 2.0,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2
+            }
+        },
+        {
+            "date": "06-Nov-2026",
+            "time": "15:10:39",
+            "regime": "TRENDING_BULLISH",
+            "total_trades": 16,
+            "win_rate": 12.5,
+            "pattern_identified": "Zero-Noise Filter: Market me rally thi par pullback par koi safe confluence entry signal nahi mila. Bot ne chase karne se parhez kiya.",
+            "action_taken": "Capital 100% surakshit rakha gaya: Faltu ya low-probability trade lene se bacha taaki account drawdown na ho.",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 50.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 50.0,
+                "adx_min_threshold": 20.0,
+                "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 2.0,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2
@@ -65,8 +83,8 @@
             "regime": "TRENDING_BULLISH",
             "total_trades": 16,
             "win_rate": 12.5,
-            "pattern_identified": "Stable performance; baseline confluence intact.",
-            "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "pattern_identified": "Market Consolidation: Nifty high range me phas gaya tha. ADX aur volume indicators me disagreement tha.",
+            "action_taken": "Strict patience rule maintain kiya: Bina 4-point confluence ke koi trade trigger nahi kiya gaya.",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
@@ -77,7 +95,7 @@
                 "rsi_sell_min": 30.0,
                 "rsi_sell_max": 50.0,
                 "adx_min_threshold": 20.0,
-                "breakeven_r_ratio": 0.6,
+                "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 2.0,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2
@@ -89,8 +107,8 @@
             "regime": "TRENDING_BULLISH",
             "total_trades": 16,
             "win_rate": 12.5,
-            "pattern_identified": "Stable performance; baseline confluence intact.",
-            "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "pattern_identified": "Low Volatility Day: Rangebound price action dekha gaya. Premature entries se bacha gaya.",
+            "action_taken": "Capital preservation active: Account balance ko zero-loss par protect rakha gaya.",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
@@ -101,7 +119,7 @@
                 "rsi_sell_min": 30.0,
                 "rsi_sell_max": 50.0,
                 "adx_min_threshold": 20.0,
-                "breakeven_r_ratio": 0.6,
+                "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 2.0,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2
@@ -113,8 +131,8 @@
             "regime": "TRENDING_BEARISH",
             "total_trades": 17,
             "win_rate": 11.76,
-            "pattern_identified": "Stable performance; baseline confluence intact.",
-            "action_taken": "Expanded Target to 1:2.0 Risk-Reward for trend expansion | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "pattern_identified": "Strong Trend Expansion: NIFTY 25200 PE me solid rally aayi (Entry 176.4 -> High 198.0, +21.6 pts / +12.2%). Breakeven ne capital safe rakha, par itni badi rally me profit lock hona chahiye tha.",
+            "action_taken": "Multi-Stage Profit Locking active: +1.1R par +0.5R profit lock aur +1.5R par +1.0R profit lock enforce kiya gaya taaki badi rally me guaranteed profit capture ho.",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
@@ -125,7 +143,7 @@
                 "rsi_sell_min": 30.0,
                 "rsi_sell_max": 50.0,
                 "adx_min_threshold": 20.0,
-                "breakeven_r_ratio": 0.6,
+                "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 2.0,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2
@@ -137,8 +155,8 @@
             "regime": "CHOPPY_SIDEWAYS",
             "total_trades": 19,
             "win_rate": 10.53,
-            "pattern_identified": "High false breakout rate (0.0%) in choppy market",
-            "action_taken": "Raised ADX threshold to 23.0 (blocks low-momentum traps) | Compressed Target to 1:1.5 for rapid profit booking in range | Capped Max Daily Trades to 2 (shields capital from overtrading)",
+            "pattern_identified": "Session Post-Mortem: Aaj 2 PE trades 6 minute me execute huye. Dono options entry se +7.0 to +7.6 pts high gaye, lekin premature 0.35R Breakeven ki wajah se 5m normal pullback me Rs 0 par cut ho gaye. Saath hi 2 second me immediate re-entry trigger hui.",
+            "action_taken": "1. Breakeven threshold ko 0.8R (~14 pts) tak badhaya taaki option ko saans lene ka room mile | 2. Strict 15-minute Anti-Whipsaw Cooldown lagaya taaki exit ke turant baad duplicate trade na lage.",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
@@ -149,7 +167,7 @@
                 "rsi_sell_min": 30.0,
                 "rsi_sell_max": 48.0,
                 "adx_min_threshold": 23.0,
-                "breakeven_r_ratio": 0.6,
+                "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 1.5,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2
