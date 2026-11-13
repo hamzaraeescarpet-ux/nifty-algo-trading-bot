@@ -1,6 +1,6 @@
 {
     "version": "1.0",
-    "last_updated": "12-Nov-2026 15:10:51 IST",
+    "last_updated": "13-Nov-2026 15:10:46 IST",
     "market_regime": "CHOPPY_SIDEWAYS",
     "parameters": {
         "supertrend_period": 10,
@@ -18,13 +18,13 @@
         "max_daily_trades": 2
     },
     "latest_trade_analysis": {
-        "total_trades": 19,
+        "total_trades": 20,
         "wins": 2,
-        "losses": 17,
+        "losses": 18,
         "breakeven_saves": 9,
-        "win_rate": 10.53,
-        "false_breakouts": 0,
-        "false_breakout_rate": 0.0,
+        "win_rate": 10.0,
+        "false_breakouts": 1,
+        "false_breakout_rate": 5.56,
         "premature_reversals": 0,
         "premature_reversal_rate": 0.0
     },
@@ -157,6 +157,30 @@
             "win_rate": 10.53,
             "pattern_identified": "Session Post-Mortem: Aaj 2 PE trades 6 minute me execute huye. Dono options entry se +7.0 to +7.6 pts high gaye, lekin premature 0.35R Breakeven ki wajah se 5m normal pullback me Rs 0 par cut ho gaye. Saath hi 2 second me immediate re-entry trigger hui.",
             "action_taken": "1. Breakeven threshold ko 0.8R (~14 pts) tak badhaya taaki option ko saans lene ka room mile | 2. Strict 15-minute Anti-Whipsaw Cooldown lagaya taaki exit ke turant baad duplicate trade na lage.",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 52.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 48.0,
+                "adx_min_threshold": 23.0,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 1.5,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2
+            }
+        },
+        {
+            "date": "13-Nov-2026",
+            "time": "15:10:46",
+            "regime": "CHOPPY_SIDEWAYS",
+            "total_trades": 20,
+            "win_rate": 10.0,
+            "pattern_identified": "False Breakout Trap: Price ne entry ke baad momentum lose kiya aur stop loss hit hua.",
+            "action_taken": "Trend confirmation filter (ADX threshold) aur SuperTrend confluence ko aur strict kiya gaya. | Target 1:1.5 kiya quick exit ke liye | ADX 23+ filter lagaya",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
