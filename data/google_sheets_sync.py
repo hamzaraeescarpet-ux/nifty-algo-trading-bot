@@ -58,6 +58,7 @@ class GoogleSheetsSync:
         self.daily_sheet = None
         self.monthly_sheet = None
         self.ai_brain_sheet = None
+        self.calendar_sheet = None
         self.sheet_url = ""
         self._initialize()
 
@@ -138,6 +139,12 @@ class GoogleSheetsSync:
             except gspread.WorksheetNotFound:
                 self.ai_brain_sheet = self.spreadsheet.add_worksheet(title="AI Brain & Learnings", rows=500, cols=10)
             self._ensure_ai_brain_header()
+
+            # 5. Setup 'Trading Calendar' tab
+            try:
+                self.calendar_sheet = self.spreadsheet.worksheet("Trading Calendar")
+            except gspread.WorksheetNotFound:
+                self.calendar_sheet = self.spreadsheet.add_worksheet(title="Trading Calendar", rows=100, cols=10)
 
         except Exception as e:
             print(f"[GoogleSheets] Initialization error: {e}")
@@ -492,5 +499,296 @@ class GoogleSheetsSync:
             self.monthly_sheet.update(range_name='A1', values=monthly_rows)
             print("[GoogleSheets] Monthly Summary updated with full totals!")
 
+            # --- Sync Trading Calendar Heatmap ---
+            self.sync_trading_calendar(history)
+
         except Exception as e:
             print(f"[GoogleSheets] Failed to update summaries: {e}")
+
+    def sync_trading_calendar(self, history: Optional[List[Dict[str, Any]]] = None):
+        """
+        Builds and syncs an interactive, trader-favorite monthly PnL calendar:
+        - Columns: SUN, MON, TUE, WED, THU, FRI, SAT, TOTAL
+        - Cell data: Day of month, trades count, and realized net PnL (Rs)
+        - Colors: Green for profit days, Red for loss days, Neutral (Cyan/Grey) for 0 trade/breakeven days.
+        """
+        if not self.calendar_sheet:
+            return
+
+        import calendar
+        from datetime import datetime
+
+        try:
+            # Load trades if not passed
+            if history is None:
+                journal_p = Path("logs/paper_trades_journal.json")
+                if journal_p.exists():
+                    import json
+                    with open(journal_p, "r", encoding="utf-8") as f:
+                        j_data = json.load(f)
+                    history = j_data.get("history", [])
+                else:
+                    history = []
+
+            # Aggregate daily pnl
+            daily_stats = {}
+            for t in history:
+                raw_time = t.get("entry_time", "") or t.get("exit_time", "")
+                if not raw_time:
+                    continue
+                try:
+                    dt = datetime.strptime(raw_time.split(" ")[0], "%d-%b-%Y")
+                    date_key = dt.strftime("%Y-%m-%d")
+                except Exception:
+                    continue
+
+                if date_key not in daily_stats:
+                    daily_stats[date_key] = {"trades": 0, "pnl": 0.0}
+
+                daily_stats[date_key]["trades"] += 1
+                daily_stats[date_key]["pnl"] += float(t.get("pnl", 0.0))
+
+            def c(r, g, b):
+                return {"red": r / 255.0, "green": g / 255.0, "blue": b / 255.0}
+
+            C_PROFIT_BG = c(212, 237, 218)       # Soft Green
+            C_PROFIT_TXT = c(21, 87, 36)
+            C_LOSS_BG = c(248, 215, 218)         # Soft Red
+            C_LOSS_TXT = c(114, 28, 36)
+            C_BREAKEVEN_BG = c(209, 236, 241)    # Soft Cyan/Blue
+            C_BREAKEVEN_TXT = c(12, 84, 96)
+            C_NOTRADE_BG = c(248, 249, 250)      # Pale Neutral
+            C_NOTRADE_TXT = c(108, 117, 125)
+            C_HEADER_BG = c(200, 230, 201)       # Soft Mint Header
+            C_HEADER_TXT = c(27, 94, 32)
+            C_TOTAL_BG = c(255, 243, 205)        # Champagne Total
+            C_TOTAL_TXT = c(133, 100, 4)
+            C_TITLE_BG = c(44, 62, 80)           # Navy Title Banner
+            C_TITLE_TXT = c(255, 255, 255)
+
+            now = datetime.now()
+            months_to_render = [(now.year, now.month)]
+            seen_months = sorted(list({k[:7] for k in daily_stats.keys()}), reverse=True)
+            for ym in seen_months:
+                try:
+                    y, m = map(int, ym.split("-"))
+                    if (y, m) not in months_to_render:
+                        months_to_render.append((y, m))
+                except Exception:
+                    pass
+
+            all_rows = []
+            batch_requests = []
+            curr_row = 1
+            cal_id = self.calendar_sheet.id
+
+            for year, month in months_to_render:
+                m_name = calendar.month_name[month].upper()
+                m_trades = sum(s["trades"] for d, s in daily_stats.items() if d.startswith(f"{year:04d}-{month:02d}"))
+                m_pnl = sum(s["pnl"] for d, s in daily_stats.items() if d.startswith(f"{year:04d}-{month:02d}"))
+                m_pnl_str = f"+Rs. {m_pnl:,.2f}" if m_pnl > 0 else (f"-Rs. {abs(m_pnl):,.2f}" if m_pnl < 0 else "Rs. 0.00")
+
+                banner_text = f"📅 {m_name} {year} - TRADING PERFORMANCE CALENDAR | Total P&L: {m_pnl_str} | Total Trades: {m_trades}"
+                all_rows.append([banner_text, "", "", "", "", "", "", ""])
+
+                batch_requests.append({
+                    "mergeCells": {
+                        "range": {
+                            "sheetId": cal_id,
+                            "startRowIndex": curr_row - 1,
+                            "endRowIndex": curr_row,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": 8
+                        },
+                        "mergeType": "MERGE_ALL"
+                    }
+                })
+                batch_requests.append({
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": cal_id,
+                            "startRowIndex": curr_row - 1,
+                            "endRowIndex": curr_row,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": 8
+                        },
+                        "cell": {
+                            "userEnteredFormat": {
+                                "backgroundColor": C_TITLE_BG,
+                                "horizontalAlignment": "CENTER",
+                                "verticalAlignment": "MIDDLE",
+                                "textFormat": {"foregroundColor": C_TITLE_TXT, "bold": True, "fontSize": 12}
+                            }
+                        },
+                        "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,textFormat)"
+                    }
+                })
+                curr_row += 1
+
+                # Weekday Headers
+                all_rows.append(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT", "TOTAL"])
+                batch_requests.append({
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": cal_id,
+                            "startRowIndex": curr_row - 1,
+                            "endRowIndex": curr_row,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": 8
+                        },
+                        "cell": {
+                            "userEnteredFormat": {
+                                "backgroundColor": C_HEADER_BG,
+                                "horizontalAlignment": "CENTER",
+                                "verticalAlignment": "MIDDLE",
+                                "textFormat": {"foregroundColor": C_HEADER_TXT, "bold": True, "fontSize": 11}
+                            }
+                        },
+                        "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,textFormat)"
+                    }
+                })
+                curr_row += 1
+
+                # Grid
+                c_obj = calendar.Calendar(firstweekday=6)
+                weeks = c_obj.monthdayscalendar(year, month)
+                grid_start = curr_row
+
+                for w_idx, week in enumerate(weeks):
+                    r_vals = []
+                    w_trades = 0
+                    w_pnl = 0.0
+
+                    for col_idx, day in enumerate(week):
+                        if day == 0:
+                            r_vals.append("")
+                            cell_bg = c(255, 255, 255)
+                            cell_txt = c(128, 128, 128)
+                            is_bold = False
+                        else:
+                            date_str = f"{year:04d}-{month:02d}-{day:02d}"
+                            stats = daily_stats.get(date_str, {"trades": 0, "pnl": 0.0})
+                            t_count = stats["trades"]
+                            pnl = stats["pnl"]
+                            w_trades += t_count
+                            w_pnl += pnl
+
+                            if pnl > 0:
+                                p_str = f"+Rs. {pnl:,.2f}"
+                                cell_bg = C_PROFIT_BG
+                                cell_txt = C_PROFIT_TXT
+                                is_bold = True
+                            elif pnl < 0:
+                                p_str = f"-Rs. {abs(pnl):,.2f}"
+                                cell_bg = C_LOSS_BG
+                                cell_txt = C_LOSS_TXT
+                                is_bold = True
+                            elif t_count > 0:
+                                p_str = "Rs. 0.00"
+                                cell_bg = C_BREAKEVEN_BG
+                                cell_txt = C_BREAKEVEN_TXT
+                                is_bold = True
+                            else:
+                                p_str = "Rs. 0.00"
+                                cell_bg = C_NOTRADE_BG
+                                cell_txt = C_NOTRADE_TXT
+                                is_bold = False
+
+                            r_vals.append(f"{day}\n{t_count} trades\n{p_str}")
+
+                        batch_requests.append({
+                            "repeatCell": {
+                                "range": {
+                                    "sheetId": cal_id,
+                                    "startRowIndex": curr_row - 1,
+                                    "endRowIndex": curr_row,
+                                    "startColumnIndex": col_idx,
+                                    "endColumnIndex": col_idx + 1
+                                },
+                                "cell": {
+                                    "userEnteredFormat": {
+                                        "backgroundColor": cell_bg,
+                                        "horizontalAlignment": "CENTER",
+                                        "verticalAlignment": "MIDDLE",
+                                        "wrapStrategy": "WRAP",
+                                        "textFormat": {"foregroundColor": cell_txt, "bold": is_bold, "fontSize": 10}
+                                    }
+                                },
+                                "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)"
+                            }
+                        })
+
+                    # Week Total column
+                    w_pnl_str = f"+Rs. {w_pnl:,.2f}" if w_pnl > 0 else (f"-Rs. {abs(w_pnl):,.2f}" if w_pnl < 0 else "Rs. 0.00")
+                    r_vals.append(f"Week {w_idx + 1}\n{w_trades} trades\n{w_pnl_str}")
+
+                    batch_requests.append({
+                        "repeatCell": {
+                            "range": {
+                                "sheetId": cal_id,
+                                "startRowIndex": curr_row - 1,
+                                "endRowIndex": curr_row,
+                                "startColumnIndex": 7,
+                                "endColumnIndex": 8
+                            },
+                            "cell": {
+                                "userEnteredFormat": {
+                                    "backgroundColor": C_TOTAL_BG,
+                                    "horizontalAlignment": "CENTER",
+                                    "verticalAlignment": "MIDDLE",
+                                    "wrapStrategy": "WRAP",
+                                    "textFormat": {"foregroundColor": C_TOTAL_TXT, "bold": True, "fontSize": 10}
+                                }
+                            },
+                            "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)"
+                        }
+                    })
+
+                    all_rows.append(r_vals)
+                    curr_row += 1
+
+                # Grid borders
+                batch_requests.append({
+                    "updateBorders": {
+                        "range": {
+                            "sheetId": cal_id,
+                            "startRowIndex": grid_start - 1,
+                            "endRowIndex": curr_row - 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": 8
+                        },
+                        "top": {"style": "SOLID", "color": {"red": 0.4, "green": 0.4, "blue": 0.4}},
+                        "bottom": {"style": "SOLID", "color": {"red": 0.4, "green": 0.4, "blue": 0.4}},
+                        "left": {"style": "SOLID", "color": {"red": 0.4, "green": 0.4, "blue": 0.4}},
+                        "right": {"style": "SOLID", "color": {"red": 0.4, "green": 0.4, "blue": 0.4}},
+                        "innerHorizontal": {"style": "SOLID", "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
+                        "innerVertical": {"style": "SOLID", "color": {"red": 0.8, "green": 0.8, "blue": 0.8}}
+                    }
+                })
+
+                all_rows.append(["", "", "", "", "", "", "", ""])
+                all_rows.append(["", "", "", "", "", "", "", ""])
+                curr_row += 2
+
+            for col_i in range(8):
+                batch_requests.append({
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": cal_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": col_i,
+                            "endIndex": col_i + 1
+                        },
+                        "properties": {"pixelSize": 125},
+                        "fields": "pixelSize"
+                    }
+                })
+
+            self.calendar_sheet.clear()
+            self.calendar_sheet.update(range_name='A1', values=all_rows)
+            if batch_requests:
+                self.spreadsheet.batch_update({"requests": batch_requests})
+            print(f"[GoogleSheets] 'Trading Calendar' successfully updated with colourful PnL heatmap!")
+
+        except Exception as e:
+            print(f"[GoogleSheets] Failed to sync trading calendar: {e}")
