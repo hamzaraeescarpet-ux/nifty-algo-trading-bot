@@ -15,6 +15,10 @@ class RiskManager:
         self.capital = initial_capital
         self.daily_pnl = 0.0
         self.daily_trades_count = 0
+        self.daily_consecutive_losses = 0
+        self.daily_trades_history = []
+        self.market_regime = "BALANCED_TREND"
+        self.current_adx = 20.0
         self.max_daily_loss = initial_capital * (self.config.MAX_DAILY_LOSS_PERCENT / 100.0)
         self.risk_per_trade_amount = initial_capital * (self.config.RISK_PER_TRADE_PERCENT / 100.0)
         self.is_circuit_breaker_tripped = False
@@ -25,8 +29,15 @@ class RiskManager:
         """Resets PnL counters at the start of a new trading day."""
         self.daily_pnl = 0.0
         self.daily_trades_count = 0
+        self.daily_consecutive_losses = 0
+        self.daily_trades_history = []
         self.is_circuit_breaker_tripped = False
         self.last_exit_time = None
+
+    def update_market_context(self, regime: str = "BALANCED_TREND", adx: float = 20.0):
+        """Dynamically informs RiskManager of live market structure and trend strength."""
+        self.market_regime = regime
+        self.current_adx = adx
 
     def increment_trade_count(self):
         """Increments daily executed trades counter."""
@@ -37,9 +48,16 @@ class RiskManager:
         self.last_exit_time = exit_time if exit_time else datetime.now()
 
     def update_daily_pnl(self, realized_pnl: float):
-        """Updates daily PnL and triggers circuit breaker if loss limit is breached."""
+        """Updates daily PnL and tracks consecutive win/loss streaks."""
         self.daily_pnl += realized_pnl
         self.capital += realized_pnl
+        self.daily_trades_history.append(realized_pnl)
+
+        if realized_pnl < 0:
+            self.daily_consecutive_losses += 1
+        elif realized_pnl > 0:
+            self.daily_consecutive_losses = 0
+
         self.max_daily_loss = self.capital * (self.config.MAX_DAILY_LOSS_PERCENT / 100.0)
         self.risk_per_trade_amount = self.capital * (self.config.RISK_PER_TRADE_PERCENT / 100.0)
 
@@ -47,25 +65,45 @@ class RiskManager:
             self.is_circuit_breaker_tripped = True
 
     def can_open_trade(self, open_positions_count: int, current_time: Optional[datetime] = None) -> Tuple[bool, str]:
-        """Validates whether a new trade can be opened according to risk & cooldown rules."""
+        """
+        Validates trade entry with dynamic Smart-Scaling & Profit Rider:
+        - Consecutive Loss Shield: 2 consecutive losses pause the session (protects against choppy whipsaws).
+        - Trending Market (ADX >= 25 or Regime TRENDING): Expands max daily trades up to 4.
+        - Sideways/Chop Market (ADX < 25): Strict 2 trades cap to prevent overtrading.
+        - Profit Rider: If net daily PnL > 0, allows riding the trend up to 4 trades.
+        """
         if self.is_circuit_breaker_tripped:
             return False, f"Daily Max Loss Limit reached (Rs. {abs(self.daily_pnl):.2f} / Rs. {self.max_daily_loss:.2f}). Trading paused for today."
 
-        max_daily_trades = getattr(self.config, 'MAX_DAILY_TRADES', 3)
-        if self.daily_trades_count >= max_daily_trades:
-            return False, f"Maximum daily trade limit ({max_daily_trades}) reached. Preserving daily capital."
-            
+        # 1. Consecutive Loss Shield: Stop if 2 trades in a row hit loss
+        if self.daily_consecutive_losses >= 2:
+            return False, "Consecutive Loss Shield Active: 2 trades in a row hit loss. Market is choppy/unfavorable. Session paused to preserve capital."
+
+        # 2. Dynamic Trade Cap (Trending vs Choppy + Profit Rider)
+        is_trending = ("TRENDING" in self.market_regime.upper()) or (self.current_adx >= 25.0)
+        is_profitable_day = (self.daily_pnl >= 0.0 and self.daily_trades_count > 0)
+
+        if is_trending or is_profitable_day:
+            dynamic_trade_limit = 4  # Trend Rider Mode
+            mode_desc = "Trending / Profit Rider Expansion (Up to 4 trades allowed)"
+        else:
+            dynamic_trade_limit = 2  # Chop Protection Mode
+            mode_desc = "Chop Shield Active (Strict 2 trades cap)"
+
+        if self.daily_trades_count >= dynamic_trade_limit:
+            return False, f"Maximum daily trade limit ({dynamic_trade_limit}) reached for current market condition ({mode_desc}). Capital protected."
+
         if open_positions_count >= self.config.MAX_OPEN_POSITIONS:
             return False, f"Maximum allowed open positions ({self.config.MAX_OPEN_POSITIONS}) already reached."
 
-        # Anti-Whipsaw Cooldown: Prevent re-entering right after a trade closed
+        # 3. Anti-Whipsaw Cooldown: Prevent re-entering right after a trade closed
         if self.last_exit_time:
             now = current_time if current_time else datetime.now()
             elapsed_mins = (now - self.last_exit_time).total_seconds() / 60.0
             if elapsed_mins < self.cooldown_minutes:
                 rem = max(1, int(self.cooldown_minutes - elapsed_mins))
                 return False, f"Anti-whipsaw cooldown active ({rem} mins left after last trade exit). Awaiting fresh market structure."
-            
+
         return True, "Trade allowed"
 
     def calculate_position_size(self, entry_price: float, stop_loss: float) -> int:

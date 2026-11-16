@@ -143,6 +143,16 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learn
                 risk_manager.update_daily_pnl(closed['pnl'])
                 risk_manager.register_trade_exit(settings.get_now_ist())
 
+        # Update market context for Dynamic Trade Allocation & Profit Rider
+        try:
+            from strategies.indicators import calculate_adx
+            adx_series = calculate_adx(sub_df)
+            curr_adx = float(adx_series.iloc[-1]) if not adx_series.empty else 20.0
+            regime = "TRENDING" if curr_adx >= 25.0 else "CHOPPY"
+            risk_manager.update_market_context(regime=regime, adx=curr_adx)
+        except Exception:
+            pass
+
         # 2. Check for fresh option entry signal
         can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions), current_time=settings.get_now_ist())
         if can_trade:
@@ -170,6 +180,7 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learn
                         reason=signal_data["reason"],
                         atr=signal_data["index_atr"]
                     )
+                    risk_manager.increment_trade_count()
                     pos["option_type"] = signal_data["option_type"]
                     pos["entry_spot"] = spot_price = signal_data["underlying_price"]
                     print(f"\n[{ts_str}] [SIGNAL] BUY {total_shares}x {contract} @ Rs. {opt_entry}")
@@ -385,6 +396,16 @@ def main():
                             print(f"[{tag}] {symbol} Closed! Exit: Rs. {closed['exit_price']} | PnL: {pnl_str} | Reason: {closed['exit_reason']}")
                             risk_manager.update_daily_pnl(closed['pnl'])
                             risk_manager.register_trade_exit(settings.get_now_ist())
+
+                    # Update market context for Dynamic Trade Allocation & Profit Rider
+                    try:
+                        from strategies.indicators import calculate_adx
+                        adx_series = calculate_adx(df)
+                        curr_adx = float(adx_series.iloc[-1]) if not adx_series.empty else 20.0
+                        regime = "TRENDING" if curr_adx >= 25.0 else "CHOPPY"
+                        risk_manager.update_market_context(regime=regime, adx=curr_adx)
+                    except Exception:
+                        pass
 
                     # B. Check for new signals if allowed
                     can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions), current_time=settings.get_now_ist())
