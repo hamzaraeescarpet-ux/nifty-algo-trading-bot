@@ -29,7 +29,7 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     tr3 = (low - close.shift(1)).abs()
     
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = tr.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    atr = tr.ewm(alpha=1/period, min_periods=1, adjust=False).mean()
     return atr
 
 def calculate_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float = 3.0) -> pd.DataFrame:
@@ -45,18 +45,26 @@ def calculate_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float =
     basic_upper = hl2 + (multiplier * atr)
     basic_lower = hl2 - (multiplier * atr)
     
-    final_upper = basic_upper.copy()
-    final_lower = basic_lower.copy()
-    
     close = df['Close'].values
     b_up = basic_upper.values
     b_low = basic_lower.values
-    f_up = np.zeros(len(df))
-    f_low = np.zeros(len(df))
-    st = np.zeros(len(df))
-    direction = np.zeros(len(df), dtype=int)
+    n = len(df)
     
-    for i in range(1, len(df)):
+    f_up = np.zeros(n)
+    f_low = np.zeros(n)
+    st = np.zeros(n)
+    direction = np.zeros(n, dtype=int)
+    
+    if n == 0:
+        return pd.DataFrame(columns=['Supertrend', 'Supertrend_Direction'])
+
+    # Proper baseline initialization
+    f_up[0] = b_up[0]
+    f_low[0] = b_low[0]
+    direction[0] = 1 if close[0] >= hl2.iloc[0] else -1
+    st[0] = f_low[0] if direction[0] == 1 else f_up[0]
+    
+    for i in range(1, n):
         # Final Upper Band
         if b_up[i] < f_up[i-1] or close[i-1] > f_up[i-1]:
             f_up[i] = b_up[i]
@@ -70,17 +78,20 @@ def calculate_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float =
             f_low[i] = f_low[i-1]
             
         # Trend Direction
-        if i == 1:
-            direction[i] = 1 if close[i] > f_up[i] else -1
-        else:
-            if direction[i-1] == 1 and close[i] < f_low[i]:
+        if direction[i-1] == 1:
+            if close[i] < f_low[i]:
                 direction[i] = -1
-            elif direction[i-1] == -1 and close[i] > f_up[i]:
-                direction[i] = 1
+                st[i] = f_up[i]
             else:
-                direction[i] = direction[i-1]
-                
-        st[i] = f_low[i] if direction[i] == 1 else f_up[i]
+                direction[i] = 1
+                st[i] = f_low[i]
+        else:
+            if close[i] > f_up[i]:
+                direction[i] = 1
+                st[i] = f_low[i]
+            else:
+                direction[i] = -1
+                st[i] = f_up[i]
         
     res = pd.DataFrame(index=df.index)
     res['Supertrend'] = st
@@ -125,12 +136,12 @@ def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
     minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
     
-    atr = tr.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    plus_di = 100 * (pd.Series(plus_dm, index=df.index).ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr.replace(0, np.nan))
-    minus_di = 100 * (pd.Series(minus_dm, index=df.index).ewm(alpha=1/period, min_periods=period, adjust=False).mean() / atr.replace(0, np.nan))
+    atr = tr.ewm(alpha=1/period, min_periods=1, adjust=False).mean()
+    plus_di = 100 * (pd.Series(plus_dm, index=df.index).ewm(alpha=1/period, min_periods=1, adjust=False).mean() / atr.replace(0, np.nan))
+    minus_di = 100 * (pd.Series(minus_dm, index=df.index).ewm(alpha=1/period, min_periods=1, adjust=False).mean() / atr.replace(0, np.nan))
     
     dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan))
-    adx = dx.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    adx = dx.ewm(alpha=1/period, min_periods=1, adjust=False).mean()
     return adx.fillna(20.0)
 
 def calculate_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
