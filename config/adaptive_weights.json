@@ -1,7 +1,7 @@
 {
     "version": "1.0",
-    "last_updated": "16-Nov-2026 21:08:26 IST",
-    "market_regime": "CHOPPY_SIDEWAYS",
+    "last_updated": "17-Nov-2026 15:10:00 IST",
+    "market_regime": "TRENDING_BULLISH",
     "parameters": {
         "supertrend_period": 10,
         "supertrend_multiplier": 3.0,
@@ -11,11 +11,11 @@
         "rsi_buy_max": 70.0,
         "rsi_sell_min": 30.0,
         "rsi_sell_max": 48.0,
-        "adx_min_threshold": 23.0,
+        "adx_min_threshold": 20.0,
         "breakeven_r_ratio": 0.8,
-        "risk_reward_ratio": 1.5,
+        "risk_reward_ratio": 2.0,
         "atr_sl_multiplier": 1.4,
-        "max_daily_trades": 2
+        "max_daily_trades": 4
     },
     "latest_trade_analysis": {
         "total_trades": 21,
@@ -219,6 +219,30 @@
                 "risk_reward_ratio": 1.5,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2
+            }
+        },
+        {
+            "date": "17-Nov-2026",
+            "time": "15:10:00",
+            "regime": "TRENDING_BULLISH",
+            "total_trades": 25,
+            "win_rate": 20.0,
+            "pattern_identified": "Trend Momentum Day: Nifty continuous bullish trend me tha (SuperTrend Green + VWAP support). Bot ne Dynamic Trade Allocation activate karke 4 trades liye jisme se 3 CE trades ne Target hit kiya (+Rs. 3,400 profit). Aakhri trade me pullback par SL hit hua.",
+            "action_taken": "Profit Rider & Dynamic Trade Cap successfully validated: Trending market me trades ko 4 tak expand karne se +Rs 3,400 ka healthy net gain hua. Trailing profit rules intact rakhe gaye.",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 52.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 48.0,
+                "adx_min_threshold": 20.0,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 2.0,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 4
             }
         }
     ]
