@@ -1,7 +1,7 @@
 {
     "version": "1.0",
-    "last_updated": "17-Nov-2026 15:10:00 IST",
-    "market_regime": "TRENDING_BULLISH",
+    "last_updated": "18-Nov-2026 15:11:00 IST",
+    "market_regime": "CHOPPY_SIDEWAYS",
     "parameters": {
         "supertrend_period": 10,
         "supertrend_multiplier": 3.0,
@@ -11,22 +11,23 @@
         "rsi_buy_max": 70.0,
         "rsi_sell_min": 30.0,
         "rsi_sell_max": 48.0,
-        "adx_min_threshold": 20.0,
+        "adx_min_threshold": 23.0,
         "breakeven_r_ratio": 0.8,
-        "risk_reward_ratio": 2.0,
+        "risk_reward_ratio": 1.5,
         "atr_sl_multiplier": 1.4,
-        "max_daily_trades": 4
+        "max_daily_trades": 2,
+        "cooldown_minutes": 15
     },
     "latest_trade_analysis": {
-        "total_trades": 21,
-        "wins": 2,
-        "losses": 19,
-        "breakeven_saves": 9,
-        "win_rate": 9.52,
-        "false_breakouts": 1,
-        "false_breakout_rate": 5.26,
+        "total_trades": 28,
+        "wins": 7,
+        "losses": 21,
+        "breakeven_saves": 10,
+        "win_rate": 25.0,
+        "false_breakouts": 2,
+        "false_breakout_rate": 9.52,
         "premature_reversals": 1,
-        "premature_reversal_rate": 5.26
+        "premature_reversal_rate": 4.76
     },
     "learning_logs": [
         {
@@ -243,6 +244,31 @@
                 "risk_reward_ratio": 2.0,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 4
+            }
+        },
+        {
+            "date": "18-Nov-2026",
+            "time": "15:11:00",
+            "regime": "CHOPPY_SIDEWAYS",
+            "total_trades": 28,
+            "win_rate": 25.0,
+            "pattern_identified": "Session Post-Mortem: Aaj 3 trades liye gaye. Options rally hokar (+18.4 pts) high gaye, lekin premature Breakeven SL ki wajah se 5m normal pullback me cost-to-cost (Rs 0) par cut ho gaye. Saath hi turant duplicate re-entry trigger hui.",
+            "action_taken": "Breakeven trigger ko 0.8R (~14 pts) tak badhaya taaki option ko saans lene ka room mile | 15-minute strict Anti-Whipsaw Cooldown enable kiya taaki exit ke turant baad duplicate trade na lage. | Target 1:1.5 kiya quick exit ke liye | ADX 23+ filter lagaya",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 52.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 48.0,
+                "adx_min_threshold": 23.0,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 1.5,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2,
+                "cooldown_minutes": 15
             }
         }
     ]
