@@ -1,7 +1,7 @@
 {
     "version": "1.0",
-    "last_updated": "18-Nov-2026 15:11:00 IST",
-    "market_regime": "CHOPPY_SIDEWAYS",
+    "last_updated": "19-Nov-2026 15:10:12 IST",
+    "market_regime": "TRENDING_BULLISH",
     "parameters": {
         "supertrend_period": 10,
         "supertrend_multiplier": 3.0,
@@ -11,23 +11,23 @@
         "rsi_buy_max": 70.0,
         "rsi_sell_min": 30.0,
         "rsi_sell_max": 48.0,
-        "adx_min_threshold": 23.0,
+        "adx_min_threshold": 20.0,
         "breakeven_r_ratio": 0.8,
-        "risk_reward_ratio": 1.5,
+        "risk_reward_ratio": 2.0,
         "atr_sl_multiplier": 1.4,
         "max_daily_trades": 2,
         "cooldown_minutes": 15
     },
     "latest_trade_analysis": {
-        "total_trades": 28,
-        "wins": 7,
-        "losses": 21,
-        "breakeven_saves": 10,
-        "win_rate": 25.0,
+        "total_trades": 31,
+        "wins": 8,
+        "losses": 23,
+        "breakeven_saves": 12,
+        "win_rate": 25.81,
         "false_breakouts": 2,
-        "false_breakout_rate": 9.52,
+        "false_breakout_rate": 8.7,
         "premature_reversals": 1,
-        "premature_reversal_rate": 4.76
+        "premature_reversal_rate": 4.35
     },
     "learning_logs": [
         {
@@ -266,6 +266,31 @@
                 "adx_min_threshold": 23.0,
                 "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 1.5,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2,
+                "cooldown_minutes": 15
+            }
+        },
+        {
+            "date": "19-Nov-2026",
+            "time": "15:10:12",
+            "regime": "TRENDING_BULLISH",
+            "total_trades": 31,
+            "win_rate": 25.81,
+            "pattern_identified": "Session Post-Mortem: Aaj 3 trades liye gaye. Options rally hokar (+12.0 pts, +13.8 pts) high gaye, lekin premature Breakeven SL ki wajah se 5m normal pullback me cost-to-cost (Rs 0) par cut ho gaye. Saath hi turant duplicate re-entry trigger hui.",
+            "action_taken": "Breakeven trigger ko 0.8R (~14 pts) tak badhaya taaki option ko saans lene ka room mile | 15-minute strict Anti-Whipsaw Cooldown enable kiya taaki exit ke turant baad duplicate trade na lage. | Target 1:2.0 Risk-Reward rakha trend expansion ke liye",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 52.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 48.0,
+                "adx_min_threshold": 20.0,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 2.0,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2,
                 "cooldown_minutes": 15
