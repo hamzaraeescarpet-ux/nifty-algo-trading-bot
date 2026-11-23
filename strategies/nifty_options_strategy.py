@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime
 from typing import Dict, Any, Optional
 from strategies.confluence_strategy import ConfluenceStrategy
 from config import settings
@@ -8,10 +9,12 @@ class NiftyOptionsStrategy:
     Translates Nifty 50 Index Confluence Signals into ATM Options Contracts:
     - Bullish Signal -> Buys ATM CALL (CE)
     - Bearish Signal -> Buys ATM PUT (PE)
-    - Automatically calculates ATM Strike, Option Premium, Delta SL & Targets.
+    - Fetches Real Live Market LTP via Kotak Neo API when connected.
+    - Fallback: Calculates realistic DTE-aware Decay Premium (Mon ~75-85, Thu ~25-35).
     """
-    def __init__(self, config=settings):
+    def __init__(self, config=settings, broker=None):
         self.config = config
+        self.broker = broker
         self.base_strategy = ConfluenceStrategy(config=config)
 
     def get_atm_strike(self, spot_price: float) -> int:
@@ -19,14 +22,29 @@ class NiftyOptionsStrategy:
         step = self.config.ATM_STRIKE_STEP
         return int(round(spot_price / step) * step)
 
-    def estimate_atm_premium(self, spot_price: float, atr: float) -> float:
+    def estimate_atm_premium(self, spot_price: float, atr: float, current_time: Optional[datetime] = None) -> float:
         """
-        Estimates realistic ATM option premium based on market volatility.
-        ATM Premium ~ 0.65% to 0.8% of Spot price for weekly options.
+        Calculates realistic ATM option premium based on Day-to-Expiry (DTE) decay:
+        Weekly expiry is Thursday (weekday = 3).
+        - Friday (DTE 6): ~Rs. 160-180
+        - Monday (DTE 3): ~Rs. 75-90 (Matches real market prices!)
+        - Tuesday (DTE 2): ~Rs. 60-75
+        - Wednesday (DTE 1): ~Rs. 40-55
+        - Thursday Expiry (DTE 0): ~Rs. 20-35
         """
-        base_pct = 0.0070
+        now = current_time if current_time else datetime.now()
+        weekday = now.weekday() if hasattr(now, 'weekday') else 0
+        
+        dte_multipliers = {
+            4: 0.0070,  # Friday (far expiry)
+            0: 0.0033,  # Monday (~Rs. 75-85 for 25,600 spot)
+            1: 0.0026,  # Tuesday (~Rs. 60-70)
+            2: 0.0019,  # Wednesday (~Rs. 45-50)
+            3: 0.0012   # Thursday Expiry (~Rs. 25-35)
+        }
+        base_pct = dte_multipliers.get(weekday, 0.0035)
         estimated_premium = spot_price * base_pct
-        return round(max(50.0, estimated_premium), 1)
+        return round(max(15.0, estimated_premium), 1)
 
     def generate_option_signal(self, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         """
@@ -45,8 +63,18 @@ class NiftyOptionsStrategy:
         option_type = "CE" if direction == "BUY" else "PE"
         contract_name = f"NIFTY {atm_strike} {option_type}"
 
-        # Option Premium modeling
-        option_entry_price = self.estimate_atm_premium(spot_price, atr)
+        # 1. First priority: Try fetching real-time market LTP from Kotak Neo Broker
+        live_ltp = None
+        if self.broker and hasattr(self.broker, "get_live_option_ltp"):
+            live_ltp = self.broker.get_live_option_ltp(atm_strike, option_type)
+
+        if live_ltp and live_ltp > 5.0:
+            option_entry_price = round(live_ltp, 1)
+            price_source = "Kotak Neo Live LTP"
+        else:
+            latest_ts = df.index[-1] if hasattr(df, "index") and not df.empty else None
+            option_entry_price = self.estimate_atm_premium(spot_price, atr, current_time=latest_ts)
+            price_source = "DTE-Decay Realistic Model"
         
         # Calculate Option Stop-Loss & Target using Delta (0.5 for ATM)
         index_risk = abs(spot_price - index_sl)
@@ -58,7 +86,7 @@ class NiftyOptionsStrategy:
         option_target = round(option_entry_price + (option_risk * self.config.RISK_REWARD_RATIO), 1)
 
         return {
-            "signal": "BUY",  # We always BUY options (either Call or Put)
+            "signal": "BUY",
             "option_action": f"BUY_{option_type}",
             "instrument": contract_name,
             "underlying_symbol": "^NSEI",
@@ -66,6 +94,7 @@ class NiftyOptionsStrategy:
             "strike": atm_strike,
             "option_type": option_type,
             "price": option_entry_price,
+            "price_source": price_source,
             "stop_loss": option_sl,
             "target": option_target,
             "option_risk_per_share": option_risk,

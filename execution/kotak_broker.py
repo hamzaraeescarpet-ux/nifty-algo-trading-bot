@@ -4,8 +4,9 @@ from config import settings
 
 class KotakNeoBroker:
     """
-    Kotak Neo Trade API Integration:
-    - Automated 2FA login using pyotp.
+    Kotak Neo Trade API v2 Integration:
+    - Automated 2FA login using pyotp and Kotak Neo v2 TOTP SDK.
+    - Live Option LTP & Quotes fetching for 100% authentic pricing.
     - Order execution (Intraday MIS / Normal CNC).
     - Position and Margin checking.
     """
@@ -15,9 +16,9 @@ class KotakNeoBroker:
         self.is_authenticated = False
 
     def connect(self) -> bool:
-        """Authenticates with Kotak Neo Trade API using credentials & TOTP."""
+        """Authenticates with Kotak Neo Trade API v2 using Consumer Key, TOTP & MPIN."""
         if not self.config.KOTAK_CONSUMER_KEY or not self.config.KOTAK_MOBILE_NUMBER:
-            print("[KotakNeoBroker] Credentials not set in .env. Running in Mock/Paper mode.")
+            print("[KotakNeoBroker] Credentials not set. Running in Mock/Paper mode.")
             return False
 
         try:
@@ -25,35 +26,59 @@ class KotakNeoBroker:
             
             self.client = NeoAPI(
                 consumer_key=self.config.KOTAK_CONSUMER_KEY,
-                consumer_secret=self.config.KOTAK_CONSUMER_SECRET,
                 environment=self.config.KOTAK_ENVIRONMENT
             )
             
-            # Step 1: Login with Mobile and Password
-            print("[KotakNeoBroker] Initiating Kotak Neo login...")
-            self.client.login(
-                mobilenumber=self.config.KOTAK_MOBILE_NUMBER,
-                password=self.config.KOTAK_PASSWORD
+            print("[KotakNeoBroker] Initiating Kotak Neo v2 TOTP Login...")
+            # Step 1: Generate dynamic TOTP code
+            if self.config.KOTAK_TOTP_KEY:
+                totp = pyotp.TOTP(self.config.KOTAK_TOTP_KEY).now()
+            else:
+                print("[KotakNeoBroker] Error: KOTAK_TOTP_KEY is required for automated 2FA login.")
+                return False
+
+            # Step 2: TOTP Login
+            self.client.totp_login(
+                mobile_number=self.config.KOTAK_MOBILE_NUMBER,
+                ucc=self.config.KOTAK_UCC,
+                totp=totp
             )
             
-            # Step 2: 2FA Session validation using TOTP
-            if self.config.KOTAK_TOTP_KEY:
-                totp = pyotp.TOTP(self.config.KOTAK_TOTP_KEY)
-                current_otp = totp.now()
-                self.client.session_2fa(OTP=current_otp)
-                print("[KotakNeoBroker] 2FA TOTP Verified Successfully!")
-            elif self.config.KOTAK_MPIN:
-                self.client.session_2fa(OTP=self.config.KOTAK_MPIN)
-                print("[KotakNeoBroker] 2FA MPIN Verified Successfully!")
-                
+            # Step 3: Validate MPIN
+            self.client.totp_validate(mpin=self.config.KOTAK_MPIN)
             self.is_authenticated = True
-            print("[KotakNeoBroker] Connected to Kotak Neo Live Account.")
+            print("[KotakNeoBroker] Connected to Kotak Neo Live Account successfully!")
             return True
 
         except Exception as e:
             print(f"[KotakNeoBroker] Authentication error: {e}")
             self.is_authenticated = False
             return False
+
+    def get_live_option_ltp(self, strike: int, option_type: str) -> Optional[float]:
+        """Fetches real-time LTP of Nifty option contract from Kotak Neo."""
+        if not self.is_authenticated or self.client is None:
+            return None
+        try:
+            res = self.client.search_scrip(
+                exchange_segment="nfo",
+                symbol="NIFTY",
+                strike_price=str(strike),
+                option_type=option_type
+            )
+            if res and isinstance(res, list) and len(res) > 0:
+                token = res[0].get("pSymbol") or res[0].get("token")
+                quote = self.client.quotes(
+                    instrument_tokens=[{"instrument_token": str(token), "exchange_segment": "nse_fo"}],
+                    quote_type="LTP"
+                )
+                if quote and "data" in quote and len(quote["data"]) > 0:
+                    ltp = float(quote["data"][0].get("last_traded_price", 0.0))
+                    if ltp > 0:
+                        return ltp
+        except Exception as e:
+            print(f"[KotakNeoBroker] Could not fetch LTP for {strike} {option_type}: {e}")
+        return None
 
     def place_order(
         self,

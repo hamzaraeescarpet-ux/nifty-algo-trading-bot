@@ -45,6 +45,7 @@ from data.google_sheets_sync import GoogleSheetsSync
 from strategies.nifty_options_strategy import NiftyOptionsStrategy
 from risk.risk_manager import RiskManager
 from execution.paper_engine import PaperExecutionEngine
+from execution.kotak_broker import KotakNeoBroker
 from learning.self_learning_engine import SelfLearningEngine
 from dashboard.app import app
 from config import settings
@@ -234,7 +235,11 @@ def main():
 
     # 3. Initialize Core Engines
     fetcher = MarketDataFetcher()
-    opt_strategy = NiftyOptionsStrategy()
+    kotak_broker = KotakNeoBroker()
+    if settings.KOTAK_CONSUMER_KEY and settings.KOTAK_MOBILE_NUMBER and settings.KOTAK_TOTP_KEY:
+        print("[KotakNeo] Connecting to Kotak Neo v2 for real tick-by-tick option prices...")
+        kotak_broker.connect()
+    opt_strategy = NiftyOptionsStrategy(broker=kotak_broker)
     risk_manager = RiskManager(initial_capital=settings.INITIAL_CAPITAL)
     paper_broker = PaperExecutionEngine(
         initial_capital=settings.INITIAL_CAPITAL,
