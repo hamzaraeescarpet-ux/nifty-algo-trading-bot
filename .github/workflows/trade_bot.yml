@@ -54,6 +54,11 @@ jobs:
           INITIAL_CAPITAL: ${{ secrets.INITIAL_CAPITAL || '100000.0' }}
           RISK_PER_TRADE_PERCENT: ${{ secrets.RISK_PER_TRADE_PERCENT || '1.0' }}
           MAX_DAILY_LOSS_PERCENT: ${{ secrets.MAX_DAILY_LOSS_PERCENT || '2.0' }}
+          KOTAK_CONSUMER_KEY: ${{ secrets.KOTAK_CONSUMER_KEY }}
+          KOTAK_UCC: ${{ secrets.KOTAK_UCC }}
+          KOTAK_MOBILE_NUMBER: ${{ secrets.KOTAK_MOBILE_NUMBER }}
+          KOTAK_MPIN: ${{ secrets.KOTAK_MPIN }}
+          KOTAK_TOTP_KEY: ${{ secrets.KOTAK_TOTP_KEY }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.mode }}" = "simulate" ]; then
             echo "Running in SIMULATION / REPLAY mode..."
