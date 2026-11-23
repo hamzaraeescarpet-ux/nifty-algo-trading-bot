@@ -23,7 +23,7 @@ class RiskManager:
         self.risk_per_trade_amount = initial_capital * (self.config.RISK_PER_TRADE_PERCENT / 100.0)
         self.is_circuit_breaker_tripped = False
         self.last_exit_time: Optional[datetime] = None
-        self.cooldown_minutes: int = 15  # Wait 15 mins (3 candles) after exit before re-entering
+        self.cooldown_minutes: int = getattr(self.config, 'COOLDOWN_MINUTES', 0)
 
     def reset_daily_metrics(self):
         """Resets PnL counters at the start of a new trading day."""
@@ -96,8 +96,8 @@ class RiskManager:
         if open_positions_count >= self.config.MAX_OPEN_POSITIONS:
             return False, f"Maximum allowed open positions ({self.config.MAX_OPEN_POSITIONS}) already reached."
 
-        # 3. Anti-Whipsaw Cooldown: Prevent re-entering right after a trade closed
-        if self.last_exit_time:
+        # 3. Anti-Whipsaw Cooldown: Prevent re-entering right after a trade closed (if configured)
+        if self.cooldown_minutes > 0 and self.last_exit_time:
             now = current_time if current_time else datetime.now()
             elapsed_mins = (now - self.last_exit_time).total_seconds() / 60.0
             if elapsed_mins < self.cooldown_minutes:
