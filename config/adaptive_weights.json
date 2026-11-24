@@ -1,6 +1,6 @@
 {
     "version": "1.0",
-    "last_updated": "23-Nov-2026 15:10:36 IST",
+    "last_updated": "24-Nov-2026 15:10:47 IST",
     "market_regime": "TRENDING_BEARISH",
     "parameters": {
         "supertrend_period": 10,
@@ -329,6 +329,31 @@
             "win_rate": 31.58,
             "pattern_identified": "Strong Trend Expansion: Option ne solid rally banayi (+49.7 pts, +17.8 pts, +45.7 pts, +44.9 pts gain). Capital safe raha, par badi rally me profit lock hona zaroori hai.",
             "action_taken": "Multi-Stage Profit Locking active: +1.1R par +0.5R profit lock aur +1.5R par +1.0R profit lock enforce kiya gaya. | Target 1:2.0 Risk-Reward rakha trend expansion ke liye",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 52.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 48.0,
+                "adx_min_threshold": 20.0,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 2.0,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2,
+                "cooldown_minutes": 15
+            }
+        },
+        {
+            "date": "24-Nov-2026",
+            "time": "15:10:47",
+            "regime": "TRENDING_BEARISH",
+            "total_trades": 38,
+            "win_rate": 31.58,
+            "pattern_identified": "Zero-Noise Filter: Market me koi confirmed confluence signal nahi bana (TRENDING_BEARISH). Bot ne chop me trade lene se parhez kiya.",
+            "action_taken": "Capital preservation active: Whipsaws aur low-momentum market traps se 100% capital safe rakha. | Target 1:2.0 Risk-Reward rakha trend expansion ke liye",
             "parameters": {
                 "supertrend_period": 10,
                 "supertrend_multiplier": 3.0,
