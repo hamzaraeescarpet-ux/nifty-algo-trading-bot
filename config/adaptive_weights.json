@@ -11,12 +11,12 @@
         "rsi_buy_max": 70.0,
         "rsi_sell_min": 30.0,
         "rsi_sell_max": 48.0,
-        "adx_min_threshold": 23.0,
-        "breakeven_r_ratio": 0.8,
-        "risk_reward_ratio": 1.5,
+        "adx_min_threshold": 20.0,
+        "breakeven_r_ratio": 0.35,
+        "risk_reward_ratio": 2.0,
         "atr_sl_multiplier": 1.4,
         "max_daily_trades": 2,
-        "cooldown_minutes": 15
+        "cooldown_minutes": 0
     },
     "latest_trade_analysis": {
         "total_trades": 40,

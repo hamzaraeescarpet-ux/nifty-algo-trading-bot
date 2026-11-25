@@ -151,25 +151,25 @@ class RiskManager:
             gain = peak_price - entry_price
             new_sl = curr_sl
 
-            # Stage 5: Dynamic Runner (Huge expansion)
+            # Stage 5: Dynamic Runner (Huge expansion +2.0R+) -> Tight trail behind peak
             if gain >= 2.0 * initial_risk:
-                candidate = round(peak_price - (0.4 * initial_risk), 1)
+                candidate = round(peak_price - (0.25 * initial_risk), 1)
                 new_sl = max(new_sl, candidate)
-            # Stage 4: +1.5R reached -> Lock in +1.0R profit
+            # Stage 4: +1.5R reached -> Lock in +1.0R guaranteed profit
             elif gain >= 1.5 * initial_risk:
                 candidate = round(entry_price + (1.0 * initial_risk), 1)
                 new_sl = max(new_sl, candidate)
-            # Stage 3: +1.1R reached -> Lock in +0.5R profit
-            elif gain >= 1.1 * initial_risk:
-                candidate = round(entry_price + (0.5 * initial_risk), 1)
+            # Stage 3: +1.0R reached -> Lock in +0.6R guaranteed profit
+            elif gain >= 1.0 * initial_risk:
+                candidate = round(entry_price + (0.6 * initial_risk), 1)
                 new_sl = max(new_sl, candidate)
-            # Stage 2: +0.8R reached -> Genuine breakout -> Move to Breakeven
-            elif gain >= 0.8 * initial_risk:
+            # Stage 2: +0.6R reached (~10-12 pts / +10% gain) -> Lock in +0.25R profit (Guaranteed Green!)
+            elif gain >= 0.6 * initial_risk:
+                candidate = round(entry_price + (0.25 * initial_risk), 1)
+                new_sl = max(new_sl, candidate)
+            # Stage 1: Instant Breakeven Shield (+0.35R reached, ~5-7 pts / +5%) -> Move SL to Cost-to-Cost (0 Risk!)
+            elif gain >= 0.35 * initial_risk:
                 candidate = round(entry_price, 1)
-                new_sl = max(new_sl, candidate)
-            # Stage 1: +0.5R reached -> Reduce risk to -0.4R (gives room to breathe)
-            elif gain >= 0.5 * initial_risk:
-                candidate = round(entry_price - (0.4 * initial_risk), 1)
                 new_sl = max(new_sl, candidate)
 
             if new_sl > curr_sl:
@@ -185,19 +185,19 @@ class RiskManager:
             new_sl = curr_sl
 
             if gain >= 2.0 * initial_risk:
-                candidate = round(lowest_seen + (0.4 * initial_risk), 1)
+                candidate = round(lowest_seen + (0.25 * initial_risk), 1)
                 new_sl = min(new_sl, candidate)
             elif gain >= 1.5 * initial_risk:
                 candidate = round(entry_price - (1.0 * initial_risk), 1)
                 new_sl = min(new_sl, candidate)
-            elif gain >= 1.1 * initial_risk:
-                candidate = round(entry_price - (0.5 * initial_risk), 1)
+            elif gain >= 1.0 * initial_risk:
+                candidate = round(entry_price - (0.6 * initial_risk), 1)
                 new_sl = min(new_sl, candidate)
-            elif gain >= 0.8 * initial_risk:
+            elif gain >= 0.6 * initial_risk:
+                candidate = round(entry_price - (0.25 * initial_risk), 1)
+                new_sl = min(new_sl, candidate)
+            elif gain >= 0.35 * initial_risk:
                 candidate = round(entry_price, 1)
-                new_sl = min(new_sl, candidate)
-            elif gain >= 0.5 * initial_risk:
-                candidate = round(entry_price + (0.4 * initial_risk), 1)
                 new_sl = min(new_sl, candidate)
 
             if new_sl < curr_sl:
