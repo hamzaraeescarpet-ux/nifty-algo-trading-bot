@@ -78,9 +78,10 @@ class NiftyOptionsStrategy:
         
         # Calculate Option Stop-Loss & Target using Delta (0.5 for ATM)
         index_risk = abs(spot_price - index_sl)
-        option_risk = round(index_risk * self.config.OPTION_DELTA, 1)
-        # Cap option risk to maximum 35% of premium to avoid complete capital bleed
-        option_risk = min(option_risk, option_entry_price * 0.35)
+        raw_option_risk = round(index_risk * self.config.OPTION_DELTA, 1)
+        # Tight Risk Control: Cap initial SL to max 10.0 points (or 8% of premium) to prevent deep losses
+        option_risk = min(raw_option_risk, 10.0, max(5.0, option_entry_price * 0.08))
+        option_risk = max(4.0, option_risk)
 
         option_sl = round(max(5.0, option_entry_price - option_risk), 1)
         option_target = round(option_entry_price + (option_risk * self.config.RISK_REWARD_RATIO), 1)
