@@ -6,7 +6,9 @@ venv/
 env/
 .idea/
 .vscode/
-logs/*.log
+logs/*
+logs/
+*.log
 service_account.json
 *gserviceaccount*.json
 zinc-*.json

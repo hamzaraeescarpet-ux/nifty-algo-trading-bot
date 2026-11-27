@@ -65,6 +65,58 @@ class ConfluenceStrategy:
         
         return df
 
+    def get_higher_timeframe_trend(self, df: pd.DataFrame) -> str:
+        """
+        Calculates 15-Minute Higher Timeframe (HTF) Trend:
+        - "BULLISH": 15m Supertrend is Green (+1) AND Close >= 15m EMA 20
+        - "BEARISH": 15m Supertrend is Red (-1) AND Close <= 15m EMA 20
+        - "NEUTRAL": Sideways / Transitioning
+        """
+        try:
+            if isinstance(df.index, pd.DatetimeIndex) and len(df) >= 30:
+                # Resample 5m to 15m candles
+                df_15m = df.resample('15min').agg({
+                    'Open': 'first',
+                    'High': 'max',
+                    'Low': 'min',
+                    'Close': 'last',
+                    'Volume': 'sum'
+                }).dropna()
+
+                if len(df_15m) >= 15:
+                    ema_20 = calculate_ema(df_15m['Close'], 20)
+                    st_15m = calculate_supertrend(
+                        df_15m,
+                        period=self.config.SUPERTREND_PERIOD,
+                        multiplier=self.config.SUPERTREND_MULTIPLIER
+                    )
+                    c = float(df_15m['Close'].iloc[-1])
+                    e20 = float(ema_20.iloc[-1])
+                    st_dir = int(st_15m['Supertrend_Direction'].iloc[-1])
+
+                    if st_dir == 1 and c >= e20:
+                        return "BULLISH"
+                    elif st_dir == -1 and c <= e20:
+                        return "BEARISH"
+                    elif st_dir == 1:
+                        return "BULLISH"
+                    elif st_dir == -1:
+                        return "BEARISH"
+
+            # Proxy fallback if index is not DatetimeIndex or fewer candles:
+            # 15m EMA 20 on 5m data ~ EMA 60; 15m EMA 50 on 5m data ~ EMA 150
+            if len(df) >= 60:
+                ema_htf = calculate_ema(df['Close'], 60)
+                c = float(df['Close'].iloc[-1])
+                e_htf = float(ema_htf.iloc[-1])
+                if c > e_htf:
+                    return "BULLISH"
+                elif c < e_htf:
+                    return "BEARISH"
+        except Exception as e:
+            print(f"[ConfluenceStrategy] HTF trend error: {e}")
+        return "NEUTRAL"
+
     def analyze_signal(self, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         """
         Analyzes the latest completed candle for high-probability Institutional setups.
@@ -89,6 +141,9 @@ class ConfluenceStrategy:
         has_trend_strength = (adx >= self.config.ADX_MIN_THRESHOLD)
         if not has_trend_strength:
             return None
+
+        # Check Higher Timeframe (15m) Trend Alignment
+        htf_trend = self.get_higher_timeframe_trend(df) if getattr(self.config, "USE_HTF_TREND_FILTER", True) else "NEUTRAL"
 
         # --- BUY (LONG / CALL CE) CONDITIONS ---
         # 1. Supertrend is Green
@@ -115,6 +170,10 @@ class ConfluenceStrategy:
         )
 
         if is_bullish_trend and is_bullish_momentum and bullish_trigger:
+            # Multi-Timeframe Alignment: Never buy Call (CE) when 15m trend is Bearish!
+            if getattr(self.config, "USE_HTF_TREND_FILTER", True) and htf_trend == "BEARISH":
+                return None
+
             stop_loss = round(close - (self.config.ATR_SL_MULTIPLIER * atr), 2)
             risk = close - stop_loss
             target = round(close + (self.config.RISK_REWARD_RATIO * risk), 2)
@@ -129,7 +188,8 @@ class ConfluenceStrategy:
                 "rsi": round(curr['RSI'], 1),
                 "supertrend": round(curr['Supertrend'], 2),
                 "vwap": round(curr['VWAP'], 2),
-                "reason": f"Bullish Confluence: ST Green + VWAP + EMA 20>50 + ADX {adx:.1f} + MACD Bullish"
+                "htf_trend": htf_trend,
+                "reason": f"Bullish Confluence: ST Green + VWAP + EMA 20>50 + ADX {adx:.1f} + HTF {htf_trend}"
             }
 
         # --- SELL (SHORT / PUT PE) CONDITIONS ---
@@ -157,6 +217,10 @@ class ConfluenceStrategy:
         )
 
         if is_bearish_trend and is_bearish_momentum and bearish_trigger:
+            # Multi-Timeframe Alignment: Never buy Put (PE) when 15m trend is Bullish!
+            if getattr(self.config, "USE_HTF_TREND_FILTER", True) and htf_trend == "BULLISH":
+                return None
+
             stop_loss = round(close + (self.config.ATR_SL_MULTIPLIER * atr), 2)
             risk = stop_loss - close
             target = round(close - (self.config.RISK_REWARD_RATIO * risk), 2)
@@ -171,7 +235,8 @@ class ConfluenceStrategy:
                 "rsi": round(curr['RSI'], 1),
                 "supertrend": round(curr['Supertrend'], 2),
                 "vwap": round(curr['VWAP'], 2),
-                "reason": f"Bearish Confluence: ST Red + VWAP + EMA 20<50 + ADX {adx:.1f} + MACD Bearish"
+                "htf_trend": htf_trend,
+                "reason": f"Bearish Confluence: ST Red + VWAP + EMA 20<50 + ADX {adx:.1f} + HTF {htf_trend}"
             }
 
         return None

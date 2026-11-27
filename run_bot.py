@@ -155,7 +155,8 @@ def run_simulation(fetcher, opt_strategy, risk_manager, paper_broker, self_learn
             pass
 
         # 2. Check for fresh option entry signal
-        can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions), current_time=settings.get_now_ist())
+        sim_now = ts if isinstance(ts, datetime) else settings.get_now_ist()
+        can_trade, reason = risk_manager.can_open_trade(len(paper_broker.open_positions), current_time=sim_now)
         if can_trade:
             signal_data = opt_strategy.generate_option_signal(sub_df)
             if signal_data is not None:

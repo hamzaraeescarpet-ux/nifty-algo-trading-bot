@@ -64,9 +64,13 @@ def get_now_ist() -> datetime:
     return datetime.now(IST)
 
 MARKET_OPEN_TIME = "09:15"
-TRADING_START_TIME = "09:20"  # Small warm-up for initial candle
+TRADING_START_TIME = "09:30"  # 09:15-09:30 AM Opening Range filter (avoids opening traps & volatile fakeouts)
 SQUARE_OFF_TIME = "15:10"     # Auto square-off all intraday positions before broker rush
 MARKET_CLOSE_TIME = "15:30"
+
+# --- MULTI-TIMEFRAME (MTF) TREND FILTER ---
+HIGHER_TIMEFRAME = "15m"      # 15m Trend Alignment prevents counter-trend trap trades
+USE_HTF_TREND_FILTER = True   # Never buy CE when 15m is Bearish, never buy PE when 15m is Bullish
 
 # --- DEFAULT WATCHLIST & INSTRUMENTS ---
 TRADE_OPTIONS = True              # Enable Nifty 50 Options Trading (CE / PE)

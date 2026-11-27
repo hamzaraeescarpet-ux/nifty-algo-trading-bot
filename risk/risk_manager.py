@@ -75,6 +75,13 @@ class RiskManager:
         if self.is_circuit_breaker_tripped:
             return False, f"Daily Max Loss Limit reached (Rs. {abs(self.daily_pnl):.2f} / Rs. {self.max_daily_loss:.2f}). Trading paused for today."
 
+        # 0. Market Open Observation Filter (09:15 to 09:30 AM block)
+        if current_time:
+            time_str = current_time.strftime("%H:%M")
+            start_time = getattr(self.config, "TRADING_START_TIME", "09:30")
+            if time_str < start_time:
+                return False, f"Opening Range Filter Active: Trading starts at {start_time} AM (observing market structure & letting VWAP settle)."
+
         # 1. Consecutive Loss Shield: Stop if 2 trades in a row hit loss
         if self.daily_consecutive_losses >= 2:
             return False, "Consecutive Loss Shield Active: 2 trades in a row hit loss. Market is choppy/unfavorable. Session paused to preserve capital."
