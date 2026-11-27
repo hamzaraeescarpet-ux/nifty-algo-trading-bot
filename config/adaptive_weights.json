@@ -1,7 +1,7 @@
 {
     "version": "1.0",
-    "last_updated": "26-Nov-2026 15:10:30 IST",
-    "market_regime": "TRENDING_BULLISH",
+    "last_updated": "27-Nov-2026 15:10:33 IST",
+    "market_regime": "CHOPPY_SIDEWAYS",
     "parameters": {
         "supertrend_period": 10,
         "supertrend_multiplier": 3.0,
@@ -11,23 +11,23 @@
         "rsi_buy_max": 70.0,
         "rsi_sell_min": 30.0,
         "rsi_sell_max": 48.0,
-        "adx_min_threshold": 20.0,
+        "adx_min_threshold": 23.0,
         "breakeven_r_ratio": 0.8,
-        "risk_reward_ratio": 2.0,
+        "risk_reward_ratio": 1.5,
         "atr_sl_multiplier": 1.4,
         "max_daily_trades": 2,
         "cooldown_minutes": 15
     },
     "latest_trade_analysis": {
-        "total_trades": 44,
+        "total_trades": 46,
         "wins": 13,
-        "losses": 31,
+        "losses": 33,
         "breakeven_saves": 16,
-        "win_rate": 29.55,
-        "false_breakouts": 3,
-        "false_breakout_rate": 9.68,
+        "win_rate": 28.26,
+        "false_breakouts": 5,
+        "false_breakout_rate": 15.15,
         "premature_reversals": 2,
-        "premature_reversal_rate": 6.45
+        "premature_reversal_rate": 6.06
     },
     "learning_logs": [
         {
@@ -416,6 +416,31 @@
                 "adx_min_threshold": 20.0,
                 "breakeven_r_ratio": 0.8,
                 "risk_reward_ratio": 2.0,
+                "atr_sl_multiplier": 1.4,
+                "max_daily_trades": 2,
+                "cooldown_minutes": 15
+            }
+        },
+        {
+            "date": "27-Nov-2026",
+            "time": "15:10:33",
+            "regime": "CHOPPY_SIDEWAYS",
+            "total_trades": 46,
+            "win_rate": 28.26,
+            "pattern_identified": "False Breakout Trap: Price ne entry ke baad momentum lose kiya aur stop loss hit hua.",
+            "action_taken": "Trend confirmation filter (ADX threshold) aur SuperTrend confluence ko aur strict kiya gaya. | Target 1:1.5 kiya quick exit ke liye | ADX 23+ filter lagaya",
+            "parameters": {
+                "supertrend_period": 10,
+                "supertrend_multiplier": 3.0,
+                "ema_fast": 20,
+                "ema_slow": 50,
+                "rsi_buy_min": 52.0,
+                "rsi_buy_max": 70.0,
+                "rsi_sell_min": 30.0,
+                "rsi_sell_max": 48.0,
+                "adx_min_threshold": 23.0,
+                "breakeven_r_ratio": 0.8,
+                "risk_reward_ratio": 1.5,
                 "atr_sl_multiplier": 1.4,
                 "max_daily_trades": 2,
                 "cooldown_minutes": 15

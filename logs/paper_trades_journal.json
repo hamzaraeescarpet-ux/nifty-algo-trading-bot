@@ -1,7 +1,7 @@
 {
     "initial_capital": 100000.0,
-    "balance": 103147.5,
-    "total_trades": 44,
+    "balance": 102080.0,
+    "total_trades": 46,
     "history": [
         {
             "trade_id": "TRADE_1_220854",
@@ -1014,6 +1014,52 @@
             "exit_reason": "TRAILING SL HIT",
             "pnl": 0.0,
             "pnl_percent": 0.0
+        },
+        {
+            "trade_id": "TRADE_45_091716",
+            "symbol": "NIFTY 25900 CE",
+            "signal": "BUY",
+            "entry_time": "27-Nov-2026 09:17:16",
+            "entry_price": 181.3,
+            "quantity": 25,
+            "stop_loss": 160.1,
+            "initial_sl": 160.1,
+            "target": 223.7,
+            "atr": 30.35,
+            "reason": "Nifty Index BUY -> NIFTY 25900 CE Triggered (Bullish Confluence: ST Green + VWAP + EMA 20>50 + ADX 21.5 + MACD Bullish)",
+            "status": "CLOSED",
+            "highest_price": 186.62480468749965,
+            "lowest_price": 140.29960937499965,
+            "option_type": "CE",
+            "entry_spot": 25898.45,
+            "exit_time": "27-Nov-2026 09:18:16",
+            "exit_price": 160.1,
+            "exit_reason": "STOP LOSS HIT",
+            "pnl": -530.0,
+            "pnl_percent": -11.69
+        },
+        {
+            "trade_id": "TRADE_46_092121",
+            "symbol": "NIFTY 25900 CE",
+            "signal": "BUY",
+            "entry_time": "27-Nov-2026 09:21:21",
+            "entry_price": 181.2,
+            "quantity": 25,
+            "stop_loss": 159.7,
+            "initial_sl": 159.7,
+            "target": 224.2,
+            "atr": 30.72,
+            "reason": "Nifty Index BUY -> NIFTY 25900 CE Triggered (Bullish Confluence: ST Green + VWAP + EMA 20>50 + ADX 22.0 + MACD Bullish)",
+            "status": "CLOSED",
+            "highest_price": 185.9998046875,
+            "lowest_price": 158.100390625,
+            "option_type": "CE",
+            "entry_spot": 25884.5,
+            "exit_time": "27-Nov-2026 09:24:21",
+            "exit_price": 159.7,
+            "exit_reason": "STOP LOSS HIT",
+            "pnl": -537.5,
+            "pnl_percent": -11.87
         }
     ],
     "open_positions": []
